@@ -658,7 +658,14 @@
         <div id="voice-monitor">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                 <div style="font-size:12px;color:#555;font-family:'PingFang SC',sans-serif;font-weight:700">实时语音链路状态（说话后自动更新）</div>
-                <button id="vm-clear-btn" onclick="vmClear()"><span class="material-icons-round" style="font-size:13px!important">delete</span>清空</button>
+                <div style="display:flex;gap:6px">
+                    <button id="vm-copy-btn" onclick="vmCopy()" style="padding:6px 12px;border-radius:8px;border:1px solid #333;cursor:pointer;background:#222;color:#aaa;font-size:12px;display:flex;align-items:center;gap:4px;font-family:'PingFang SC',sans-serif;white-space:nowrap">
+                        <span class="material-icons-round" style="font-size:13px!important">content_copy</span>复制链路日志
+                    </button>
+                    <button id="vm-clear-btn" onclick="vmClear()" style="padding:6px 10px;border-radius:8px;border:1px solid #333;cursor:pointer;background:#222;color:#aaa;font-size:12px;display:flex;align-items:center;gap:4px;font-family:'PingFang SC',sans-serif">
+                        <span class="material-icons-round" style="font-size:13px!important">delete</span>清空
+                    </button>
+                </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 <div class="vm-card" id="vm-ws">
@@ -899,19 +906,49 @@
 
             showResultContent(records, ragContent);
 
+            // 从问题里提取人名关键词
+            const extractNameFromQ = (q) => {
+                // 常见名字模式：2-4个汉字，去掉常用动词/疑问词
+                const stopWords = ['帮我', '查询', '查一下', '今天', '今日', '工作', '情况', '什么', '怎么样', '汇报', '完成', '做了', '的', '吗', '呢', '啊', '请问'];
+                let s = q;
+                stopWords.forEach(w => { s = s.replace(new RegExp(w, 'g'), ' '); });
+                // 提取2-4个连续汉字作为候选人名
+                const matches = s.match(/[一-龥]{2,4}/g) || [];
+                return matches.filter(m => m.length >= 2);
+            };
+
             // 把查询结果整理成口语化播报文本
             const buildSpeakText = (question, records) => {
                 if (!records || records.length === 0) {
                     return '抱歉，没有找到关于"' + question.substring(0, 20) + '"的汇报记录。';
                 }
-                const r = records[0];
+
+                // 尝试按人名过滤
+                const nameHints = extractNameFromQ(question);
+                vmLog('🔎 问题中提取人名候选: ' + (nameHints.join('、') || '(无)'), 'cyan');
+                let filtered = records;
+                if (nameHints.length > 0) {
+                    const matched = records.filter(r => {
+                        const n = (r.employee_name || '').toLowerCase();
+                        return nameHints.some(hint => n.includes(hint) || hint.includes(n));
+                    });
+                    if (matched.length > 0) {
+                        filtered = matched;
+                        vmLog('✅ 人名过滤后剩 ' + matched.length + ' 条，第1条：' + (matched[0].employee_name||'?'), 'ok');
+                    } else {
+                        vmLog('⚠️ 人名过滤无匹配，用全部结果（第1条：' + (records[0].employee_name||'?') + '）', 'warn');
+                    }
+                }
+
+                const r = filtered[0];
                 const name = r.employee_name || '该员工';
                 const date = r.record_date || '';
                 let summary = (r.summary || '').replace(/[\r\n]+/g, ' ').replace(/^(员工|部门|日期|---)[^\x00]*?：/g, '').trim();
                 if (summary.length > 120) summary = summary.substring(0, 120) + '……';
-                let text = name + (date ? date + '的汇报：' : '的汇报：') + summary;
-                if (records.length > 1) {
-                    text += '。另有' + (records.length - 1) + '条相关记录，请查看屏幕。';
+                let text = name + '在' + (date || '今天') + '的汇报：' + summary;
+                const extra = filtered.length - 1;
+                if (extra > 0) {
+                    text += '。另有' + extra + '条相关记录，请查看屏幕。';
                 }
                 return text;
             };
@@ -1326,6 +1363,7 @@
     /* ══════════════════════════════════════════════════════════════ */
     /*  语音链路实时监控                                                */
     /* ══════════════════════════════════════════════════════════════ */
+    let _vmLogs = [];  // 语音链路日志数组，供复制用
     function switchDebugTab(tab) {
         document.getElementById('tab-rag').classList.toggle('active', tab === 'rag');
         document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
@@ -1337,6 +1375,39 @@
 
     function vmClear() {
         document.getElementById('vm-events').innerHTML = '<div style="color:#555;font-size:12px;font-family:\'PingFang SC\',sans-serif">已清空，等待新的语音交互…</div>';
+        _vmLogs = [];
+    }
+
+    function vmCopy() {
+        if (!_vmLogs || _vmLogs.length === 0) {
+            showToast('暂无语音链路日志', 'error'); return;
+        }
+        const text = '=== OneToMore 语音链路日志 ===\n' +
+            _vmLogs.join('\n') +
+            '\n=== END ===';
+        const btn = document.getElementById('vm-copy-btn');
+        const copy = (t) => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(t).then(() => {
+                    showToast('✅ 链路日志已复制', 'success');
+                    if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<span class="material-icons-round" style="font-size:13px!important">check</span>已复制'; btn.style.color='#00e6a8'; setTimeout(()=>{btn.innerHTML=orig;btn.style.color='';},2000); }
+                }).catch(() => fallbackVmCopy(t));
+            } else { fallbackVmCopy(t); }
+        };
+        copy(text);
+    }
+
+    function fallbackVmCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.select(); ta.setSelectionRange(0, 99999);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+        if (ok) showToast('✅ 链路日志已复制', 'success');
+        else showToast('复制失败，请长按手动选中', 'error');
     }
 
     // 刷新状态卡片
@@ -1370,26 +1441,25 @@
 
     // 向语音链路时间线写日志
     function vmLog(text, level) {
+        const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        // 写入复制数组
+        _vmLogs.push('[' + ts + '] ' + text);
+        _debugLogs.push({ text: '[语音] ' + text, color: level || 'green' });
+
         const eventsEl = document.getElementById('vm-events');
         if (!eventsEl) return;
         // 清除"等待"占位
-        if (eventsEl.children.length === 1 && eventsEl.children[0].style && !eventsEl.children[0].className.includes('vm-event')) {
+        if (eventsEl.children.length === 1 && !eventsEl.children[0].className.includes('vm-event')) {
             eventsEl.innerHTML = '';
         }
-        const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const div = document.createElement('div');
         div.className = 'vm-event';
         div.innerHTML = '<span class="vm-event-time">' + ts + '</span><span class="vm-event-text ' + (level||'') + '">' + escHtml(text) + '</span>';
-        // 新事件插到最上面
         eventsEl.insertBefore(div, eventsEl.firstChild);
-        // 只保留50条
         while (eventsEl.children.length > 50) eventsEl.removeChild(eventsEl.lastChild);
-        // 同步刷新状态卡片（如果面板开着）
         if (document.getElementById('tab-voice').classList.contains('active')) {
             vmRefreshStatus();
         }
-        // 同时写到_debugLogs供复制
-        _debugLogs.push({ text: '[语音] ' + text, color: level || 'green' });
     }
 
     /* ══════════════════════════════════════════════════════════════ */
