@@ -972,11 +972,10 @@
             if (DW.isConnected()) {
                 const speakText = buildSpeakText(question, records);
                 vmLog('📝 构建播报文本: ' + speakText.substring(0,60) + '…', 'cyan');
-                // 新流程：510注入上下文 → 501触发豆包说话，走完整TTS链路
                 try {
-                    DW.injectAndSpeak(question, speakText);
+                    DW.updateAndSpeak(question, speakText);
                 } catch(e) {
-                    vmLog('❌ injectAndSpeak失败: ' + e.message, 'err');
+                    vmLog('❌ updateAndSpeak失败: ' + e.message, 'err');
                 }
             } else {
                 vmLog('❌ 查询完成但WS已断开，无法播报', 'err');
@@ -1343,28 +1342,32 @@
 
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
-        // 510注入上下文 + 501触发豆包说话，走完整TTS链路
-        const injectAndSpeak = (question, answerText) => {
+        // 201更新system_role为汇报内容 + 501触发豆包播报
+        const updateAndSpeak = (question, answerText) => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            const now = Math.floor(Date.now() / 1000);
-            // 510: 注入一问一答到上下文
-            const ctx = JSON.stringify({
-                items: [
-                    { role: 'user', text: question, timestamp: now - 2 },
-                    { role: 'assistant', text: answerText, timestamp: now - 1 }
-                ]
-            });
-            vmLog('📥 发510 ConversationCreate注入上下文', 'cyan');
-            ws.send(encode(510, ctx, sid));
-            // 延迟100ms再发501，确保510被服务端处理
+            // 重组提示词：让豆包照着汇报内容一字不差念出来
+            const newPrompt = '你是一个工作汇报播报助手。请将以下员工汇报内容完整朗读出来，不要添加任何内容，不要省略，一字不差：' + answerText;
+            vmLog('📋 发UpdateConfig重组提示词', 'cyan');
+            ws.send(encode(201, JSON.stringify({
+                dialog: { system_role: sanitize(newPrompt) }
+            }), sid));
+            // 延迟150ms确保201生效，再发501触发播报
             setTimeout(() => {
                 if (!ws || ws.readyState !== WebSocket.OPEN) return;
-                vmLog('🗣️ 发501 ChatTextQuery触发播报', 'cyan');
-                ws.send(encode(501, JSON.stringify({ content: question }), sid));
-            }, 100);
+                vmLog('🗣️ 发501触发豆包播报', 'cyan');
+                ws.send(encode(501, JSON.stringify({ content: '请播报' }), sid));
+                // 播报完成后恢复基础提示词
+                setTimeout(() => {
+                    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                    vmLog('🔄 恢复基础提示词', 'cyan');
+                    ws.send(encode(201, JSON.stringify({
+                        dialog: { system_role: sanitize(baseSystemPrompt) }
+                    }), sid));
+                }, 5000);
+            }, 150);
         };
 
-        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected, injectAndSpeak };
+        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected, updateAndSpeak };
     })();
 
     /* ══════════════════════════════════════════════════════════════ */
