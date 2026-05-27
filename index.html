@@ -354,128 +354,91 @@
         #debug-btn .material-icons-round { font-size: 14px !important; }
         #debug-overlay {
             display: none; position: fixed; inset: 0; z-index: 9999;
-            background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+            background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
             align-items: flex-end; justify-content: center;
         }
         #debug-overlay.open { display: flex; }
         #debug-panel {
-            background: #f7f7fa; color: #1a1a2e;
-            width: 100%; max-width: 820px; max-height: 90vh;
-            border-radius: 24px 24px 0 0; display: flex; flex-direction: column;
-            font-family: 'Alibaba PuHuiTi 3','PingFang SC',sans-serif; font-size: 14px;
-            box-shadow: 0 -8px 40px rgba(0,0,0,.25); overflow: hidden;
+            background: #111; color: #00e676;
+            width: 100%; max-width: 820px; max-height: 88vh;
+            border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
+            font-family: 'Courier New', Courier, monospace; font-size: 13px;
+            box-shadow: 0 -8px 40px rgba(0,0,0,.6); overflow: hidden;
         }
         #debug-header {
-            display: flex; align-items: center; gap: 10px; padding: 16px 20px 14px;
-            border-bottom: 1px solid rgba(0,0,0,.08); flex-shrink: 0;
-            background: #fff;
+            display: flex; align-items: center; gap: 10px; padding: 14px 18px 12px;
+            border-bottom: 1px solid #222; flex-shrink: 0; background: #1a1a1a;
         }
         #debug-header-title {
-            font-size: 16px; font-weight: 800; color: #1a1a2e;
-            display: flex; align-items: center; gap: 7px; flex: 1;
+            font-size: 15px; font-weight: 800; color: #f5c518;
+            display: flex; align-items: center; gap: 8px; flex: 1;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
         }
-        #debug-header-title .material-icons-round { font-size: 18px !important; color: var(--accent); }
-        #debug-close { background: none; border: none; cursor: pointer; color: #aaa; padding: 4px; display: flex; align-items: center; border-radius: 8px; }
-        #debug-close:hover { background: var(--surface2); color: var(--ink); }
-        #debug-close .material-icons-round { font-size: 20px !important; }
+        #debug-header-title .material-icons-round { font-size: 18px !important; color: #f5c518; }
+        #debug-close {
+            background: none; border: none; cursor: pointer; color: #666;
+            padding: 4px; display: flex; align-items: center; border-radius: 6px;
+        }
+        #debug-close:hover { color: #fff; }
+        #debug-close .material-icons-round { font-size: 22px !important; }
         #debug-toolbar {
-            display: flex; gap: 8px; align-items: center; padding: 10px 20px;
-            border-bottom: 1px solid rgba(0,0,0,.06); flex-shrink: 0;
-            background: #fff;
+            display: flex; gap: 10px; align-items: center; padding: 10px 18px;
+            border-bottom: 1px solid #222; flex-shrink: 0; background: #1a1a1a;
         }
         #debug-auto-label {
             flex: 1; display: flex; align-items: center; gap: 7px;
-            font-size: 13px; font-weight: 600; color: var(--ink-soft);
+            font-size: 13px; color: #aaa;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
         }
-        #debug-auto-label .material-icons-round { font-size: 16px !important; color: var(--accent); animation: spin 1.5s linear infinite; }
-        #debug-auto-label.done .material-icons-round { animation: none; color: var(--success); }
-        #debug-auto-question { color: var(--ink); font-weight: 700; }
+        #debug-auto-label .material-icons-round { font-size: 15px !important; color: #5b4fff; animation: spin 1.5s linear infinite; }
+        #debug-auto-label.done .material-icons-round { animation: none; color: #00e676; }
+        #debug-auto-question { color: #fff; font-weight: 700; }
         #debug-copy-btn {
-            padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--border);
-            cursor: pointer; background: #fff; color: var(--ink-soft);
-            font-size: 13px; display: flex; align-items: center; gap: 5px; transition: background .15s;
-            white-space: nowrap;
+            padding: 7px 14px; border-radius: 8px; border: 1px solid #333;
+            cursor: pointer; background: #222; color: #aaa;
+            font-size: 12px; display: flex; align-items: center; gap: 5px;
+            white-space: nowrap; transition: background .15s;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
         }
-        #debug-copy-btn:hover { background: var(--surface2); color: var(--ink); }
-        #debug-copy-btn .material-icons-round { font-size: 16px !important; }
+        #debug-copy-btn:hover { background: #333; color: #fff; }
+        #debug-copy-btn .material-icons-round { font-size: 15px !important; }
 
-        /* 步骤流程区域 */
+        /* 日志行区域 */
         #debug-log {
-            flex: 1; overflow-y: auto; padding: 16px 20px 24px;
-            display: flex; flex-direction: column; gap: 10px;
+            flex: 1; overflow-y: auto; padding: 14px 18px 20px;
+            display: flex; flex-direction: column; gap: 0;
+            background: #111;
         }
-        #debug-log::-webkit-scrollbar { width: 5px; }
-        #debug-log::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 3px; }
+        #debug-log::-webkit-scrollbar { width: 4px; }
+        #debug-log::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
 
-        .dbg-step {
-            background: #fff; border-radius: 16px;
-            border: 1.5px solid rgba(0,0,0,.07);
-            overflow: hidden;
-            transition: border-color .3s;
+        /* 每一行日志 */
+        .dbg-line {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 4px 0; border-bottom: 1px solid #1a1a1a;
+            line-height: 1.6; font-size: 13px;
         }
-        .dbg-step.step-ok    { border-color: rgba(0,196,140,.3); }
-        .dbg-step.step-err   { border-color: rgba(255,77,109,.4); }
-        .dbg-step.step-warn  { border-color: rgba(245,158,11,.3); }
-        .dbg-step.step-running { border-color: rgba(91,79,255,.3); }
+        .dbg-line:last-child { border-bottom: none; }
+        .dbg-prefix { color: #555; flex-shrink: 0; font-size: 12px; padding-top: 1px; min-width: 20px; }
+        .dbg-text { word-break: break-all; flex: 1; }
+        .dbg-text.green  { color: #00e676; }
+        .dbg-text.red    { color: #ff5252; font-weight: 700; }
+        .dbg-text.yellow { color: #f5c518; }
+        .dbg-text.gray   { color: #888; }
+        .dbg-text.white  { color: #fff; }
+        .dbg-text.cyan   { color: #40c4ff; }
 
-        .dbg-step-header {
-            display: flex; align-items: center; gap: 10px;
-            padding: 12px 16px;
+        /* 分隔标题行 */
+        .dbg-section-line {
+            padding: 8px 0 4px; color: #f5c518; font-weight: 700; font-size: 12px;
+            letter-spacing: .5px; border-bottom: 1px solid #222;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
         }
-        .dbg-step-num {
-            width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; font-weight: 800;
-            background: var(--surface2); color: var(--ink-soft);
-        }
-        .dbg-step.step-ok   .dbg-step-num { background: rgba(0,196,140,.15); color: #00a878; }
-        .dbg-step.step-err  .dbg-step-num { background: rgba(255,77,109,.15); color: #e03050; }
-        .dbg-step.step-warn .dbg-step-num { background: rgba(245,158,11,.15); color: #b97c00; }
-        .dbg-step.step-running .dbg-step-num { background: rgba(91,79,255,.12); color: var(--accent); }
+        .dbg-section-line:not(:first-child) { margin-top: 6px; }
 
-        .dbg-step-title {
-            flex: 1; font-size: 14px; font-weight: 700; color: var(--ink);
-        }
-        .dbg-step-status {
-            font-size: 12px; font-weight: 700; padding: 3px 10px;
-            border-radius: 20px; flex-shrink: 0;
-        }
-        .dbg-step.step-ok   .dbg-step-status { background: rgba(0,196,140,.12); color: #00a878; }
-        .dbg-step.step-err  .dbg-step-status { background: rgba(255,77,109,.12); color: #e03050; }
-        .dbg-step.step-warn .dbg-step-status { background: rgba(245,158,11,.12); color: #b97c00; }
-        .dbg-step.step-running .dbg-step-status { background: rgba(91,79,255,.1); color: var(--accent); }
-        .dbg-step-pending .dbg-step-status { background: var(--surface2); color: var(--ink-soft); }
-
-        .dbg-step-body {
-            padding: 0 16px 14px; display: flex; flex-direction: column; gap: 5px;
-        }
-        .dbg-step-row {
-            display: flex; gap: 8px; align-items: flex-start;
-            font-size: 13px; line-height: 1.6; color: var(--ink);
-        }
-        .dbg-step-row-icon {
-            font-size: 14px !important; flex-shrink: 0; margin-top: 2px;
-            color: var(--ink-soft);
-        }
-        .dbg-step-row.row-ok   .dbg-step-row-icon { color: #00c48c; }
-        .dbg-step-row.row-err  .dbg-step-row-icon { color: var(--danger); }
-        .dbg-step-row.row-warn .dbg-step-row-icon { color: var(--warning); }
-        .dbg-step-row-text { word-break: break-all; }
-        .dbg-step-row-sub {
-            font-size: 12px; color: var(--ink-soft); margin-top: 1px;
-            background: var(--surface); padding: 6px 10px; border-radius: 8px;
-            white-space: pre-wrap; word-break: break-all; line-height: 1.5;
-        }
-
-        .dbg-wait { text-align: center; padding: 40px 20px; color: var(--ink-soft); font-size: 14px; }
-        .dbg-wait .material-icons-round { font-size: 36px !important; display: block; margin: 0 auto 10px; opacity: .3; }
-
-        /* 步骤连接线 */
-        .dbg-arrow {
-            display: flex; justify-content: center; align-items: center;
-            color: var(--ink-soft); opacity: .4; height: 8px;
-        }
-        .dbg-arrow .material-icons-round { font-size: 18px !important; }
+        .dbg-wait { text-align: center; padding: 40px 20px; color: #555; font-size: 14px;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif; }
+        .dbg-wait .material-icons-round { font-size: 36px !important; display: block; margin: 0 auto 10px; opacity: .2; color: #00e676; }
 
         @media (max-width: 860px) {
             .layout { flex-direction: column; }
@@ -1210,50 +1173,35 @@
 
     // 步骤卡片系统
     const _steps = [];
-    function createStep(num, title) {
+
+    // ── 简单行日志 ──
+    function addLine(text, color) {
         const log = document.getElementById('debug-log');
-        // 连接箭头
-        if (num > 1) {
-            const arr = document.createElement('div');
-            arr.className = 'dbg-arrow';
-            arr.innerHTML = '<span class="material-icons-round">arrow_downward</span>';
-            log.appendChild(arr);
-        }
-        const card = document.createElement('div');
-        card.className = 'dbg-step step-running';
-        card.id = 'dbg-step-' + num;
-        card.innerHTML = `
-            <div class="dbg-step-header">
-                <div class="dbg-step-num">${num}</div>
-                <div class="dbg-step-title">${escHtml(title)}</div>
-                <div class="dbg-step-status">进行中…</div>
-            </div>
-            <div class="dbg-step-body" id="dbg-step-body-${num}"></div>`;
-        log.appendChild(card);
-        log.scrollTop = log.scrollHeight;
-        _steps[num] = card;
-        return card;
+        const line = document.createElement('div');
+        line.className = 'dbg-line';
+        line.innerHTML = '<span class="dbg-prefix">›</span><span class="dbg-text ' + (color||'green') + '">' + escHtml(text) + '</span>';
+        log.appendChild(line);
+        log.scrollTop = 99999;
+        _debugLogs.push({ text, color });
     }
-
+    function addSection(title) {
+        const log = document.getElementById('debug-log');
+        const d = document.createElement('div');
+        d.className = 'dbg-section-line';
+        d.textContent = '══ ' + title + ' ══';
+        log.appendChild(d);
+        log.scrollTop = 99999;
+    }
+    // 兼容旧调用（不再使用卡片）
+    function createStep(num, title) { addSection('步骤' + num + '：' + title); }
     function finishStep(num, state, statusText) {
-        const card = document.getElementById('dbg-step-' + num);
-        if (!card) return;
-        card.className = 'dbg-step step-' + state;
-        const st = card.querySelector('.dbg-step-status');
-        if (st) st.textContent = statusText;
-        document.getElementById('debug-log').scrollTop = 99999;
+        const color = state === 'ok' ? 'green' : state === 'err' ? 'red' : 'yellow';
+        addLine('→ ' + statusText, color);
     }
-
     function addStepRow(num, icon, text, sub, rowClass) {
-        const body = document.getElementById('dbg-step-body-' + num);
-        if (!body) return;
-        const row = document.createElement('div');
-        row.className = 'dbg-step-row ' + (rowClass || '');
-        let subHtml = sub ? `<div class="dbg-step-row-sub">${escHtml(sub)}</div>` : '';
-        row.innerHTML = `<span class="material-icons-round dbg-step-row-icon">${icon}</span>
-            <div><div class="dbg-step-row-text">${escHtml(text)}</div>${subHtml}</div>`;
-        body.appendChild(row);
-        document.getElementById('debug-log').scrollTop = 99999;
+        const color = rowClass === 'row-ok' ? 'green' : rowClass === 'row-err' ? 'red' : rowClass === 'row-warn' ? 'yellow' : 'cyan';
+        addLine('  ' + text, color);
+        if (sub) addLine('    ' + sub, 'gray');
     }
 
     async function debugRunAuto(question) {
@@ -1265,13 +1213,16 @@
         const autoLabel = document.getElementById('debug-auto-label');
         const autoQ = document.getElementById('debug-auto-question');
         if (autoLabel) autoLabel.className = '';
-        if (autoQ) autoQ.textContent = '诊断问题：「' + question + '」';
+        if (autoQ) autoQ.textContent = '诊断：「' + question + '」';
+
+        addLine('[OneToMore 查询诊断日志]', 'yellow');
+        addLine('问题：' + question, 'white');
+        addLine('时间：' + new Date().toLocaleString('zh-CN'), 'gray');
 
         try {
-            // ── 步骤 1：发送问题 ──
-            createStep(1, '发送问题到查询接口');
-            addStepRow(1, 'chat_bubble_outline', '问题：' + question, null, '');
-            addStepRow(1, 'tune', '相似度阈值：0.65  最多返回：5条', null, '');
+            // ── 步骤 1 ──
+            addSection('步骤1：发送问题到查询接口');
+            addLine('  阈值：0.65  最多返回：5条', 'gray');
 
             const t0 = Date.now();
             let res, data;
@@ -1283,126 +1234,99 @@
                 });
                 const elapsed = Date.now() - t0;
                 if (res.ok) {
-                    finishStep(1, 'ok', '✓ 发送成功 ' + elapsed + 'ms');
-                    addStepRow(1, 'speed', '服务器响应 ' + elapsed + 'ms', null, 'row-ok');
-                    dbgLog('ok', 'HTTP ' + res.status + ', ' + elapsed + 'ms');
+                    addLine('✓ 发送成功，服务器响应 ' + elapsed + 'ms', 'green');
                 } else {
-                    finishStep(1, 'err', '✗ 接口错误 HTTP ' + res.status);
-                    addStepRow(1, 'error_outline', 'HTTP ' + res.status + '，接口报错', '请检查 Supabase 函数是否正常部署', 'row-err');
-                    dbgLog('err', 'HTTP ' + res.status);
-                    if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第1步失败，请看上方红色步骤'; }
+                    addLine('✗ 接口错误 HTTP ' + res.status, 'red');
+                    addLine('  原因：Supabase 函数未部署或出错', 'red');
+                    if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第1步失败'; }
                     return;
                 }
             } catch(fetchErr) {
-                finishStep(1, 'err', '✗ 网络失败');
-                addStepRow(1, 'wifi_off', '网络请求失败：' + fetchErr.message, '请检查网络连接', 'row-err');
-                if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 网络连接失败'; }
+                addLine('✗ 网络请求失败：' + fetchErr.message, 'red');
+                if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 网络失败'; }
                 return;
             }
 
-            // ── 步骤 2：解析响应 ──
-            createStep(2, '解析服务端返回数据');
+            // ── 步骤 2 ──
+            addSection('步骤2：解析服务端数据');
             try {
                 data = await res.json();
                 if (data.error) {
-                    finishStep(2, 'err', '✗ 业务错误');
-                    addStepRow(2, 'error_outline', '接口返回错误：' + data.error, null, 'row-err');
-                    if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第2步失败：' + data.error; }
+                    addLine('✗ 接口返回错误：' + data.error, 'red');
+                    if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第2步失败'; }
                     return;
                 }
-                finishStep(2, 'ok', '✓ 数据正常');
-                addStepRow(2, 'check_circle', '数据解析成功', null, 'row-ok');
+                addLine('✓ 数据解析成功', 'green');
             } catch(jsonErr) {
-                finishStep(2, 'err', '✗ 数据异常');
-                addStepRow(2, 'error_outline', '响应格式错误：' + jsonErr.message, null, 'row-err');
+                addLine('✗ 数据格式异常：' + jsonErr.message, 'red');
                 if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第2步失败'; }
                 return;
             }
 
-            // ── 步骤 3：问题改写 ──
-            createStep(3, '问题改写（AI 扩展关键词）');
+            // ── 步骤 3 ──
+            addSection('步骤3：问题改写（AI 扩展关键词）');
             const rewritten = data.rewritten_question;
             if (rewritten && rewritten !== question) {
-                addStepRow(3, 'edit', '改写前：' + question, null, '');
-                addStepRow(3, 'auto_awesome', '改写后：' + rewritten, null, 'row-ok');
-                finishStep(3, 'ok', '✓ 已改写');
+                addLine('  改写前：' + question, 'gray');
+                addLine('  改写后：' + rewritten, 'cyan');
+                addLine('✓ 已改写', 'green');
             } else {
-                addStepRow(3, 'remove_circle_outline', '未做改写，直接使用原始问题', null, 'row-warn');
-                finishStep(3, 'warn', '⚠ 未改写');
+                addLine('  未做改写，直接用原始问题', 'yellow');
             }
 
-            // ── 步骤 4：向量检索 ──
+            // ── 步骤 4 ──
             const records = data.records || [];
-            createStep(4, '向量检索 · 匹配员工汇报记录');
+            addSection('步骤4：向量检索（匹配员工汇报记录）');
             if (records.length === 0) {
-                addStepRow(4, 'search_off', '没有找到任何相关汇报记录', '相似度不足 0.65，或数据库里还没有汇报数据', 'row-err');
-                addStepRow(4, 'info_outline', '原因1：员工还没有提交汇报', null, '');
-                addStepRow(4, 'info_outline', '原因2：阈值 0.65 偏高，可联系开发人员调低', null, '');
-                addStepRow(4, 'warning_amber', '⚠ 这是语音助理乱说的根本原因！没有资料就会编造', null, 'row-err');
-                finishStep(4, 'err', '✗ 无结果（这是问题所在）');
-                dbgLog('err', '无命中记录');
+                addLine('✗ 没有找到任何匹配的汇报记录', 'red');
+                addLine('  原因1：员工还没有提交汇报', 'red');
+                addLine('  原因2：阈值 0.65 偏高导致过滤掉了', 'red');
+                addLine('  ⚠ 这是语音助理乱说的根本原因！', 'red');
             } else {
-                addStepRow(4, 'done_all', '共找到 ' + records.length + ' 条相关记录', null, 'row-ok');
+                addLine('✓ 找到 ' + records.length + ' 条相关记录', 'green');
                 records.forEach(function(r, i) {
                     const sim = r.similarity ? (r.similarity * 100).toFixed(1) + '%' : '—';
-                    const simClass = r.similarity >= 0.8 ? 'row-ok' : r.similarity >= 0.7 ? '' : 'row-warn';
-                    addStepRow(4, 'person_outline',
-                        (r.employee_name || '未知') + '（' + (r.department || '无部门') + '）· ' + (r.record_date || '—') + ' · 相似度 ' + sim,
-                        r.summary ? r.summary.substring(0, 150) + (r.summary.length > 150 ? '…' : '') : null,
-                        simClass
-                    );
+                    const color = r.similarity >= 0.8 ? 'green' : r.similarity >= 0.7 ? 'cyan' : 'yellow';
+                    addLine('  [' + (i+1) + '] ' + (r.employee_name||'未知') + ' · ' + (r.record_date||'—') + ' · 相似度 ' + sim, color);
+                    if (r.summary) addLine('      摘要：' + r.summary.substring(0, 80) + (r.summary.length > 80 ? '…' : ''), 'gray');
                 });
-                const hasLow = records.some(function(r){ return r.similarity < 0.7; });
-                finishStep(4, hasLow ? 'warn' : 'ok', hasLow ? '⚠ 相似度偏低' : '✓ ' + records.length + '条记录');
             }
 
-            // ── 步骤 5：RAG 内容生成 ──
+            // ── 步骤 5 ──
             const rag = data.rag_content || '';
-            createStep(5, '生成资料（发给语音助理的内容）');
+            addSection('步骤5：生成资料（发给语音助理的内容）');
             if (rag) {
-                addStepRow(5, 'article', '内容长度：' + rag.length + ' 字', null, 'row-ok');
-                addStepRow(5, 'preview', '内容预览：', rag.substring(0, 300) + (rag.length > 300 ? '…（已截断）' : ''), '');
-                finishStep(5, 'ok', '✓ ' + rag.length + '字');
-                dbgLog('ok', 'rag_content ' + rag.length + '字');
+                addLine('✓ 内容长度：' + rag.length + ' 字', 'green');
+                addLine('  预览：' + rag.substring(0, 120) + (rag.length > 120 ? '…' : ''), 'gray');
             } else {
-                addStepRow(5, 'warning_amber', 'RAG 内容为空！语音助理没有任何资料可参考', '这会导致助理乱编答案', 'row-err');
-                finishStep(5, 'err', '✗ 内容为空（问题所在）');
-                dbgLog('err', 'rag为空');
+                addLine('✗ 资料为空！语音助理将没有任何参考内容', 'red');
+                addLine('  这会导致助理编造答案', 'red');
             }
 
-            // ── 步骤 6：最终诊断 ──
-            createStep(6, '最终诊断结论');
+            // ── 步骤 6 ──
+            addSection('步骤6：最终诊断结论');
             let finalOk = true;
             if (records.length === 0) {
                 finalOk = false;
-                addStepRow(6, 'report_problem', '❌ 根本原因：没有检索到任何员工汇报记录', null, 'row-err');
-                addStepRow(6, 'tips_and_updates', '解决方法：请先让员工提交汇报，再来测试查询', null, '');
-                finishStep(6, 'err', '❌ 需要修复');
+                addLine('❌ 根本原因：数据库里没有相关汇报记录', 'red');
+                addLine('   解决：让员工先提交汇报，再来测试', 'yellow');
             } else if (!rag) {
                 finalOk = false;
-                addStepRow(6, 'report_problem', '⚠ 有记录但资料为空，后端拼接出问题', null, 'row-warn');
-                finishStep(6, 'warn', '⚠ 需要检查后端');
+                addLine('⚠ 有记录但资料为空，后端拼接出问题', 'yellow');
             } else if (records.some(function(r){ return r.similarity < 0.7; })) {
-                addStepRow(6, 'warning_amber', '⚠ 有记录但相似度偏低，匹配不够精准', null, 'row-warn');
-                addStepRow(6, 'tips_and_updates', '建议：描述问题时更具体，如"张三今天工作进展"', null, '');
-                finishStep(6, 'warn', '⚠ 基本正常但不够精准');
+                addLine('⚠ 记录匹配度偏低，建议提问时更具体', 'yellow');
             } else {
-                addStepRow(6, 'check_circle', '✅ 全部正常！语音助理应该能正确回答', null, 'row-ok');
-                finishStep(6, 'ok', '✅ 全部正常');
+                addLine('✅ 全部正常！语音助理应该能正确回答', 'green');
             }
 
             if (autoLabel) {
                 autoLabel.className = 'done';
-                if (autoQ) autoQ.textContent = finalOk && records.length > 0 ? '✅ 诊断完成，流程正常' : '❌ 发现问题，请看红色步骤';
+                autoQ.textContent = finalOk && records.length > 0 ? '✅ 诊断完成，全部正常' : '❌ 发现问题，看红色日志';
             }
 
         } catch(e) {
-            dbgLog('err', e.message);
-            const errDiv = document.createElement('div');
-            errDiv.style.cssText = 'background:rgba(255,77,109,.1);border:1.5px solid rgba(255,77,109,.3);border-radius:12px;padding:14px 16px;color:#e03050;font-size:13px;margin-top:8px';
-            errDiv.textContent = '运行出错：' + e.message;
-            log.appendChild(errDiv);
-            if (autoLabel) { autoLabel.className = 'done'; if (autoQ) autoQ.textContent = '❌ 运行出错'; }
+            addLine('运行出错：' + e.message, 'red');
+            if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 运行出错'; }
         }
     }
 
@@ -1411,24 +1335,14 @@
 
     function debugCopy() {
         if (_debugLogs.length === 0) { showToast('暂无日志可复制', 'error'); return; }
-        const lines = _debugLogs.map(function(l) {
-            var extra = '';
-            if (l.extra !== undefined) {
-                extra = '\n    ' + (typeof l.extra === 'string' ? l.extra : JSON.stringify(l.extra, null, 2)).replace(/\n/g, '\n    ');
-            }
-            return '[' + l.ts + '][' + l.tag.toUpperCase() + '] ' + l.msg + extra;
-        });
-        const text = '=== OneToMore RAG 调试日志 ===\n' + lines.join('\n') + '\n=== END ===';
-
-        // 优先用 clipboard API，失败则用 textarea 降级
+        const text = '=== OneToMore 诊断日志 ===\n' +
+            _debugLogs.map(function(l){ return l.text; }).join('\n') +
+            '\n=== END ===';
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(function() {
-                showToast('✅ 日志已复制，可直接粘贴给开发者', 'success');
-                flashCopyBtn();
+                showToast('✅ 日志已复制', 'success'); flashCopyBtn();
             }).catch(function() { fallbackCopy(text); });
-        } else {
-            fallbackCopy(text);
-        }
+        } else { fallbackCopy(text); }
     }
 
     function fallbackCopy(text) {
