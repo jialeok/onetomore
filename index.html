@@ -805,7 +805,11 @@
             showResultContent(records, ragContent);
 
             if (ragContent && DW.isConnected()) {
-                DW.sendRAGText(ragContent);
+                // 查到结果后打断豆包当前回答，注入RAG让豆包重新基于数据回答
+                DW.interruptAndInjectRAG(ragContent);
+            } else if (!ragContent && DW.isConnected()) {
+                // 没查到记录，主动告知豆包
+                DW.interruptAndInjectRAG('用户问题：' + question + '\n\n未检索到相关员工汇报记录，请告知用户该员工今日暂未提交汇报。');
             }
 
             try {
@@ -1090,9 +1094,25 @@
             ws.send(encode(200, chatMsg, sid));
         };
 
+        // 打断豆包当前回答，再注入RAG内容重新回答
+        const interruptAndInjectRAG = ragText => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            // 先发打断指令
+            try { ws.send(encode(102, '{}', sid)); } catch(_) {}
+            // 200ms后注入RAG，让豆包重新回答
+            setTimeout(() => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                const chatMsg = JSON.stringify({
+                    event: 'ChatRAGText',
+                    text: sanitize(ragText.substring(0, 4000))
+                });
+                ws.send(encode(200, chatMsg, sid));
+            }, 200);
+        };
+
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
-        return { toggleConnect, connect, disconnect, startMic, sendRAGText, isConnected };
+        return { toggleConnect, connect, disconnect, startMic, sendRAGText, interruptAndInjectRAG, isConnected };
     })();
 
     /* ══════════════════════════════════════════════════════════════ */
@@ -1106,6 +1126,7 @@
             lastAsrText = text;
             queryFired = false;
             if (asrDebounce) clearTimeout(asrDebounce);
+            // 缩短为800ms：用户停顿后尽快查询，让RAG结果在豆包回答前准备好
             asrDebounce = setTimeout(() => {
                 if (lastAsrText && lastAsrText.length >= 2 && !queryFired) {
                     queryFired = true;
@@ -1113,7 +1134,7 @@
                     lastAsrText = '';
                     pendingQuery = '';
                 }
-            }, 2500);
+            }, 800);
         }
     };
 
