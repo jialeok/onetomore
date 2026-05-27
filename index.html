@@ -812,12 +812,7 @@
                 const r = records[0];
                 const name = r.employee_name || '该员工';
                 const date = r.record_date || '';
-                let summary = r.summary || '';
-                // 去掉格式化前缀行
-                summary = summary.replace(/^(员工|部门|日期)：[^
-]+
-/gm, '').replace(/^-+
-?/gm, '').trim();
+                let summary = (r.summary || '').replace(/[\r\n]+/g, ' ').replace(/^(员工|部门|日期|---)[^\x00]*?：/g, '').trim();
                 if (summary.length > 120) summary = summary.substring(0, 120) + '……';
                 let text = name + (date ? date + '的汇报：' : '的汇报：') + summary;
                 if (records.length > 1) {
@@ -1170,15 +1165,13 @@
         const sendTTSResult = text => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             console.log('[OTM] 发送500 TTS直接播报 | len=' + text.length);
-            // 分句发送，每句不超过100字
-            const sentences = text.match(/[^。！？
-]{1,80}[。！？
-]?/g) || [text];
-            let first = true;
-            sentences.forEach((s, i) => {
-                const isLast = i === sentences.length - 1;
-                ws.send(encode(500, JSON.stringify({ start: first, content: s, end: isLast }), sid));
-                first = false;
+            // 按句号等断句，每包一句
+            const parts = text.split(/(?<=[。！？])/) .filter(s => s.trim());
+            if (parts.length === 0) parts.push(text);
+            parts.forEach((s, i) => {
+                const isFirst = i === 0;
+                const isLast = i === parts.length - 1;
+                ws.send(encode(500, JSON.stringify({ start: isFirst, content: s.trim(), end: isLast }), sid));
             });
         };
 
