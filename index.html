@@ -1183,14 +1183,13 @@
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
-                        vmLog('📤 发500"请稍等" → waitingForTTSEnd=true', 'warn');
+                        
+                        vmLog('📤 发501"请稍等"(ChatTextQuery) → waitingForTTSEnd=true', 'warn');
                         vmLog('🔍 触发数据库查询: ' + q.substring(0,30), 'warn');
-                        console.log('[OTM] 发500"请稍等" + 触发doQuery: ' + q.substring(0, 30));
+                        console.log('[OTM] 发501"请稍等" + 触发doQuery: ' + q.substring(0, 30));
                         try {
-                            // 三包分发：start/content/end 分开，避免服务端把合包当空包处理导致无音频
-                            ws.send(encode(500, JSON.stringify({ start: true, content: '', end: false }), sid));
-                            ws.send(encode(500, JSON.stringify({ start: false, content: '好的，正在为您查询，请稍等。', end: false }), sid));
-                            ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
+                            // 用501(ChatTextQuery)代替500，让豆包走正常闲聊链路说"请稍等"，不与自主TTS竞争
+                            ws.send(encode(501, JSON.stringify({ content: '好的，正在为您查询，请稍等。' }), sid));
                         } catch(_) {}
                         doQuery(q);
                     } else {
