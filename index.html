@@ -973,9 +973,9 @@
                 const speakText = buildSpeakText(question, records);
                 vmLog('📝 构建播报文本: ' + speakText.substring(0,60) + '…', 'cyan');
                 try {
-                    DW.updateAndSpeak(question, speakText);
+                    DW.sendTTSResult(speakText);
                 } catch(e) {
-                    vmLog('❌ updateAndSpeak失败: ' + e.message, 'err');
+                    vmLog('❌ sendTTSResult失败: ' + e.message, 'err');
                 }
             } else {
                 vmLog('❌ 查询完成但WS已断开，无法播报', 'err');
