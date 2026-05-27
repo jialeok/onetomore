@@ -952,27 +952,32 @@
                     setTopbarStatus('聆听中', true);
                     setWave(true, true);
                     setSubtitle('', true);
+                    // 本轮回答结束，重置标志，允许下一轮触发查询
+                    queryFired = false;
                 } else if (eid === 450) {
                     stopAudio();
                 } else if (eid === 451) {
+                    // ASRResponse：用户还在说话，只记录识别文本，不触发查询
                     const t = (j.results || []).map(r => r.text).join('');
                     if (t) {
                         setSubtitle(t, true);
                         setVoiceStatus('我听到：' + t.substring(0, 30), 'listening');
                         pendingQuery = t;
-                        // 立即注入"请稍等"，阻止豆包自行回答，同时触发查询
-                        if (!queryFired) {
-                            queryFired = true;
-                            if (asrDebounce) clearTimeout(asrDebounce);
-                            // 用ChatTTSText发"请稍等"安抚话术（官方文档事件500）
-                            try {
-                                ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
-                                ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
-                            } catch(_) {}
-                            // 同时后台查询
-                            doQuery(t);
-                            pendingQuery = '';
-                        }
+                    }
+                } else if (eid === 459) {
+                    // ASREnded：豆包确认用户说完话，此时才是发502的正确时机
+                    if (!queryFired && pendingQuery) {
+                        queryFired = true;
+                        if (asrDebounce) clearTimeout(asrDebounce);
+                        const q = pendingQuery;
+                        pendingQuery = '';
+                        // 先用ChatTTSText(500)发"请稍等"安抚话术
+                        try {
+                            ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
+                            ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
+                        } catch(_) {}
+                        // 后台查询，结果返回后再通过502发给豆包
+                        doQuery(q);
                     }
                 } else if (eid === 153 || eid === 599) {
                     setVoiceStatus('连接出错，请重试', '');
