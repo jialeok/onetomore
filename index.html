@@ -945,18 +945,14 @@
                 const date = r.record_date || '';
                 // 清理summary里的字段头：去掉"员工：xxx"、"部门：xxx"、"日期：xxx"、"---"等
                 let summary = (r.summary || '')
-                    .replace(/员工[：:][^
-]*/g, '')
-                    .replace(/部门[：:][^
-]*/g, '')
-                    .replace(/日期[：:][^
-]*/g, '')
+                    .replace(/员工[：:][^\n]*/g, '')
+                    .replace(/部门[：:][^\n]*/g, '')
+                    .replace(/日期[：:][^\n]*/g, '')
                     .replace(/---+/g, '')
                     .replace(/今日完成事项[：:]/g, '')
                     .replace(/遇到的问题[：:]/g, '，遇到的问题是：')
                     .replace(/明日计划[：:]/g, '，明日计划：')
-                    .replace(/[
-]+/g, ' ')
+                    .replace(/[\r\n]+/g, ' ')
                     .replace(/\s{2,}/g, ' ')
                     .trim();
                 if (summary.length > 150) summary = summary.substring(0, 150) + '……';
@@ -1253,16 +1249,26 @@
             btn.disabled = true;
             btnText.textContent = '连接中…';
 
-            const config = await loadDoubaoConfig();
-            if (config) {
-                if (config.system_prompt) systemPrompt = config.system_prompt;
-                if (config.speaker) speaker = config.speaker;
-            }
-
-            // 读取豆包专用系统提示词（scene='doubao'），不再用Query Prompt覆盖
-            const promptRow = await sbClient.from('ai_prompts').select('content').eq('scene', 'doubao').limit(1).single();
-            if (promptRow.data && promptRow.data.content) {
-                systemPrompt = promptRow.data.content;
+            // 加超时保护：Supabase读取失败或超时，不影响后续WS连接
+            try {
+                const timeout = ms => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
+                const [config] = await Promise.all([
+                    Promise.race([loadDoubaoConfig(), timeout(3000)]).catch(() => null)
+                ]);
+                if (config) {
+                    if (config.system_prompt) systemPrompt = config.system_prompt;
+                    if (config.speaker) speaker = config.speaker;
+                }
+                // 读取豆包专用系统提示词（scene='doubao'）
+                const promptRow = await Promise.race([
+                    sbClient.from('ai_prompts').select('content').eq('scene', 'doubao').limit(1).single(),
+                    timeout(3000)
+                ]).catch(() => null);
+                if (promptRow && promptRow.data && promptRow.data.content) {
+                    systemPrompt = promptRow.data.content;
+                }
+            } catch(_) {
+                // 读取配置失败，用默认值继续连接
             }
 
             setVoiceStatus('正在连接…', '');
