@@ -804,23 +804,41 @@
 
             showResultContent(records, ragContent);
 
-            if (DW.isConnected()) {
-                if (ragContent) {
-                    // 把结果存起来，等"请稍等"的TTSEnded触发后再发502
-                    // 如果"请稍等"已经播完了（waitingForTTSEnd已变false），则直接发
-                    if (waitingForTTSEnd) {
-                        pendingRagContent = ragContent;
-                    } else {
-                        DW.sendRAGText(ragContent);
-                    }
-                } else {
-                    const noResultRag = '未检索到"' + question + '"相关的员工汇报记录，请直接告知用户该员工今日暂未提交汇报。';
-                    if (waitingForTTSEnd) {
-                        pendingRagContent = noResultRag;
-                    } else {
-                        DW.sendRAGText(noResultRag);
-                    }
+            // 把查询结果整理成口语化播报文本
+            const buildSpeakText = (question, records) => {
+                if (!records || records.length === 0) {
+                    return '抱歉，没有找到关于"' + question.substring(0, 20) + '"的汇报记录。';
                 }
+                const r = records[0];
+                const name = r.employee_name || '该员工';
+                const date = r.record_date || '';
+                let summary = r.summary || '';
+                // 去掉格式化前缀行
+                summary = summary.replace(/^(员工|部门|日期)：[^
+]+
+/gm, '').replace(/^-+
+?/gm, '').trim();
+                if (summary.length > 120) summary = summary.substring(0, 120) + '……';
+                let text = name + (date ? date + '的汇报：' : '的汇报：') + summary;
+                if (records.length > 1) {
+                    text += '。另有' + (records.length - 1) + '条相关记录，请查看屏幕。';
+                }
+                return text;
+            };
+
+            console.log('[OTM] doQuery完成 | ragLen=' + ragContent.length + ' | records=' + records.length + ' | isConnected=' + DW.isConnected() + ' | waitingForTTSEnd=' + waitingForTTSEnd);
+            if (DW.isConnected()) {
+                const speakText = buildSpeakText(question, records);
+                console.log('[OTM] 准备播报文本: ' + speakText.substring(0, 80));
+                if (waitingForTTSEnd) {
+                    console.log('[OTM] 请稍等还在播，存pendingRagContent等359触发');
+                    pendingRagContent = speakText;
+                } else {
+                    console.log('[OTM] 请稍等已播完，直接用500播报');
+                    try { DW.sendTTSResult(speakText); } catch(e) { console.error('[OTM] sendTTSResult失败', e); }
+                }
+            } else {
+                console.warn('[OTM] doQuery完成但WS已断开');
             }
 
             try {
@@ -962,20 +980,23 @@
                     flushAudio();
                 } else if (eid === 359) {
                     flushAudio();
+                    console.log('[OTM] TTSEnded(359) | waitingForTTSEnd=' + waitingForTTSEnd + ' | pendingRagContent=' + (pendingRagContent ? pendingRagContent.length + '字' : 'null'));
                     if (waitingForTTSEnd) {
+                        // "请稍等"播完了
                         waitingForTTSEnd = false;
                         if (pendingRagContent !== null) {
-                            // 查询已完成，立即发502
+                            // 查询已完成，直接用500播报结果（不依赖502时序）
+                            console.log('[OTM] 查询已完成，直接用500播报结果');
                             const rag = pendingRagContent;
                             pendingRagContent = null;
-                            try {
-                                ws.send(encode(502, JSON.stringify({ external_rag: sanitizeRag(rag) }), sid));
-                            } catch(_) {}
+                            try { sendTTSResult(rag); } catch(_) {}
+                        } else {
+                            console.log('[OTM] 查询还没完成，等doQuery回调');
                         }
-                        // 若pendingRagContent仍为null，说明查询还没完成
-                        // doQuery完成后会检查waitingForTTSEnd已为false，走sendRAGText直接发
+                        // queryFired保持true，等500播完(再次359)再重置
                     } else {
-                        // 正常RAG回答轮结束，重置，允许下一轮提问
+                        // 正常回答轮（500播完 或 豆包自主回答）结束
+                        console.log('[OTM] 正常回答轮结束，重置queryFired');
                         queryFired = false;
                         state = 'listening';
                         setVoiceStatus('正在聆听…', 'listening');
@@ -994,22 +1015,23 @@
                         pendingQuery = t;
                     }
                 } else if (eid === 459) {
-                    // ASREnded：用户说完了，现在才是正确时机
+                    // ASREnded：用户说完话
+                    console.log('[OTM] ASREnded(459) | queryFired=' + queryFired + ' | pendingQuery=' + pendingQuery.substring(0, 30));
                     if (!queryFired && pendingQuery) {
                         queryFired = true;
-                        waitingForTTSEnd = true;  // 标记：下次TTSEnded是"请稍等"结束
+                        waitingForTTSEnd = true;
                         pendingRagContent = null;
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
-                        // 第一步：发"请稍等"安抚话术（500），豆包会念出来
+                        console.log('[OTM] 发500"请稍等" + 触发doQuery: ' + q.substring(0, 30));
                         try {
                             ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
                             ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
                         } catch(_) {}
-                        // 第二步：同时后台查询，结果存到pendingRagContent
-                        // 等TTSEnded(359)收到时再发502，时序完全符合文档
                         doQuery(q);
+                    } else {
+                        console.log('[OTM] ASREnded忽略: queryFired=' + queryFired + ' pendingQuery为空=' + !pendingQuery);
                     }
                 } else if (eid === 153 || eid === 599) {
                     setVoiceStatus('连接出错，请重试', '');
@@ -1136,13 +1158,28 @@
             document.getElementById('tap-btn').classList.add('hidden');
         };
 
-        // 发送外部RAG数据给豆包（官方文档：事件502，字段external_rag）
+        // 发送外部RAG数据给豆包（事件502）
         const sendRAGText = ragText => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            const chatMsg = JSON.stringify({
-                external_rag: sanitizeRag(ragText)
-            });
+            console.log('[OTM] 发送502 RAG | len=' + ragText.length);
+            const chatMsg = JSON.stringify({ external_rag: sanitizeRag(ragText) });
             ws.send(encode(502, chatMsg, sid));
+        };
+
+        // 用ChatTTSText(500)直接让豆包念出查询结果文本（不依赖502时序）
+        const sendTTSResult = text => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            console.log('[OTM] 发送500 TTS直接播报 | len=' + text.length);
+            // 分句发送，每句不超过100字
+            const sentences = text.match(/[^。！？
+]{1,80}[。！？
+]?/g) || [text];
+            let first = true;
+            sentences.forEach((s, i) => {
+                const isLast = i === sentences.length - 1;
+                ws.send(encode(500, JSON.stringify({ start: first, content: s, end: isLast }), sid));
+                first = false;
+            });
         };
 
         // 发送客户端合成文本（官方文档：事件500，用于"请稍等"安抚话术）
@@ -1154,7 +1191,7 @@
 
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
-        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, isConnected };
+        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected };
     })();
 
     /* ══════════════════════════════════════════════════════════════ */
