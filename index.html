@@ -806,10 +806,20 @@
 
             if (DW.isConnected()) {
                 if (ragContent) {
-                    DW.sendRAGText(ragContent);
+                    // 把结果存起来，等"请稍等"的TTSEnded触发后再发502
+                    // 如果"请稍等"已经播完了（waitingForTTSEnd已变false），则直接发
+                    if (waitingForTTSEnd) {
+                        pendingRagContent = ragContent;
+                    } else {
+                        DW.sendRAGText(ragContent);
+                    }
                 } else {
-                    // 没查到记录，发RAG告知豆包直接说
-                    DW.sendRAGText('未检索到"' + question + '"相关的员工汇报记录，请直接告知用户该员工今日暂未提交汇报。');
+                    const noResultRag = '未检索到"' + question + '"相关的员工汇报记录，请直接告知用户该员工今日暂未提交汇报。';
+                    if (waitingForTTSEnd) {
+                        pendingRagContent = noResultRag;
+                    } else {
+                        DW.sendRAGText(noResultRag);
+                    }
                 }
             }
 
@@ -833,6 +843,8 @@
     let lastAsrText = '';
     let queryFired = false;
     let pendingQuery = '';
+    let pendingRagContent = null;  // 查询结果缓存，等"请稍等"播完再发502
+    let waitingForTTSEnd = false;  // 标记当前正在播"请稍等"，等TTSEnded再发502
 
     const DW = (() => {
         let ws, sid, seq = 2, state = 'idle';
@@ -947,17 +959,31 @@
                     flushAudio();
                 } else if (eid === 359) {
                     flushAudio();
-                    state = 'listening';
-                    setVoiceStatus('正在聆听…', 'listening');
-                    setTopbarStatus('聆听中', true);
-                    setWave(true, true);
-                    setSubtitle('', true);
-                    // 本轮回答结束，重置标志，允许下一轮触发查询
-                    queryFired = false;
+                    // 如果这次TTSEnded是"请稍等"播完，且查询结果已就绪，立即发502
+                    if (waitingForTTSEnd) {
+                        waitingForTTSEnd = false;
+                        if (pendingRagContent !== null) {
+                            const rag = pendingRagContent;
+                            pendingRagContent = null;
+                            try {
+                                const chatMsg = JSON.stringify({ external_rag: sanitize(rag.substring(0, 4000)) });
+                                ws.send(encode(502, chatMsg, sid));
+                            } catch(_) {}
+                        }
+                        // 本次是过渡话术轮，不重置queryFired，等502回答完再重置
+                    } else {
+                        // 正常回答轮结束，重置标志，允许下一轮提问
+                        queryFired = false;
+                        state = 'listening';
+                        setVoiceStatus('正在聆听…', 'listening');
+                        setTopbarStatus('聆听中', true);
+                        setWave(true, true);
+                        setSubtitle('', true);
+                    }
                 } else if (eid === 450) {
                     stopAudio();
                 } else if (eid === 451) {
-                    // ASRResponse：用户还在说话，只记录识别文本，不触发查询
+                    // ASRResponse：用户还在说话，只记录文本，不触发任何动作
                     const t = (j.results || []).map(r => r.text).join('');
                     if (t) {
                         setSubtitle(t, true);
@@ -965,18 +991,21 @@
                         pendingQuery = t;
                     }
                 } else if (eid === 459) {
-                    // ASREnded：豆包确认用户说完话，此时才是发502的正确时机
+                    // ASREnded：用户说完了，现在才是正确时机
                     if (!queryFired && pendingQuery) {
                         queryFired = true;
+                        waitingForTTSEnd = true;  // 标记：下次TTSEnded是"请稍等"结束
+                        pendingRagContent = null;
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
-                        // 先用ChatTTSText(500)发"请稍等"安抚话术
+                        // 第一步：发"请稍等"安抚话术（500），豆包会念出来
                         try {
                             ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
                             ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
                         } catch(_) {}
-                        // 后台查询，结果返回后再通过502发给豆包
+                        // 第二步：同时后台查询，结果存到pendingRagContent
+                        // 等TTSEnded(359)收到时再发502，时序完全符合文档
                         doQuery(q);
                     }
                 } else if (eid === 153 || eid === 599) {
