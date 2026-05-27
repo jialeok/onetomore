@@ -379,26 +379,17 @@
         #debug-close:hover { background: var(--surface2); color: var(--ink); }
         #debug-close .material-icons-round { font-size: 20px !important; }
         #debug-toolbar {
-            display: flex; gap: 8px; align-items: center; padding: 12px 20px;
+            display: flex; gap: 8px; align-items: center; padding: 10px 20px;
             border-bottom: 1px solid rgba(0,0,0,.06); flex-shrink: 0;
             background: #fff;
         }
-        #debug-query-input {
-            flex: 1; background: var(--surface); border: 1.5px solid var(--border);
-            border-radius: 12px; padding: 10px 14px; font-size: 14px; color: var(--ink);
-            font-family: inherit; outline: none; transition: border-color .2s;
+        #debug-auto-label {
+            flex: 1; display: flex; align-items: center; gap: 7px;
+            font-size: 13px; font-weight: 600; color: var(--ink-soft);
         }
-        #debug-query-input:focus { border-color: var(--accent); }
-        #debug-query-input::placeholder { color: #aaa; }
-        #debug-run-btn {
-            padding: 10px 18px; border-radius: 12px; border: none; cursor: pointer;
-            background: var(--accent); color: #fff; font-weight: 700; font-size: 13px;
-            display: flex; align-items: center; gap: 6px; transition: opacity .15s, transform .1s;
-            white-space: nowrap;
-        }
-        #debug-run-btn:hover { opacity: .88; transform: translateY(-1px); }
-        #debug-run-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
-        #debug-run-btn .material-icons-round { font-size: 16px !important; }
+        #debug-auto-label .material-icons-round { font-size: 16px !important; color: var(--accent); animation: spin 1.5s linear infinite; }
+        #debug-auto-label.done .material-icons-round { animation: none; color: var(--success); }
+        #debug-auto-question { color: var(--ink); font-weight: 700; }
         #debug-copy-btn {
             padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--border);
             cursor: pointer; background: #fff; color: var(--ink-soft);
@@ -620,12 +611,12 @@
             </button>
         </div>
         <div id="debug-toolbar">
-            <input id="debug-query-input" type="text" placeholder="输入问题，点击运行…例：小张今天汇报了什么">
-            <button id="debug-run-btn" onclick="debugRun()">
-                <span class="material-icons-round">play_arrow</span>运行
-            </button>
+            <div id="debug-auto-label">
+                <span class="material-icons-round">autorenew</span>
+                <span id="debug-auto-question">自动诊断中…</span>
+            </div>
             <button id="debug-copy-btn" onclick="debugCopy()">
-                <span class="material-icons-round">content_copy</span>复制
+                <span class="material-icons-round">content_copy</span>复制日志
             </button>
         </div>
         <div id="debug-log">
@@ -1197,6 +1188,9 @@
 
     function openDebugPanel() {
         document.getElementById('debug-overlay').classList.add('open');
+        // 用最近一次提问自动运行，没有则用默认测试问题
+        const autoQ = lastAsrText || (queryHistory.length > 0 ? queryHistory[0] : '今天小张汇报了什么');
+        debugRunAuto(autoQ);
     }
     function closeDebugPanel() {
         document.getElementById('debug-overlay').classList.remove('open');
@@ -1262,24 +1256,22 @@
         document.getElementById('debug-log').scrollTop = 99999;
     }
 
-    async function debugRun() {
-        const input = document.getElementById('debug-query-input');
-        const runBtn = document.getElementById('debug-run-btn');
-        const question = input.value.trim();
-        if (!question) { input.focus(); return; }
-
+    async function debugRunAuto(question) {
         _debugLogs = [];
         _steps.length = 0;
-        document.getElementById('debug-log').innerHTML = '';
-        runBtn.disabled = true;
-        runBtn.innerHTML = '<span class="material-icons-round" style="font-size:16px!important;animation:spin 1s linear infinite">refresh</span>运行中…';
+        const log = document.getElementById('debug-log');
+        log.innerHTML = '';
+
+        const autoLabel = document.getElementById('debug-auto-label');
+        const autoQ = document.getElementById('debug-auto-question');
+        if (autoLabel) autoLabel.className = '';
+        if (autoQ) autoQ.textContent = '诊断问题：「' + question + '」';
 
         try {
             // ── 步骤 1：发送问题 ──
             createStep(1, '发送问题到查询接口');
-            addStepRow(1, 'chat_bubble_outline', '你的问题：' + question, null, '');
+            addStepRow(1, 'chat_bubble_outline', '问题：' + question, null, '');
             addStepRow(1, 'tune', '相似度阈值：0.65  最多返回：5条', null, '');
-            dbgLog('info', question); dbgLog('info', 'threshold=0.65, top_k=5');
 
             const t0 = Date.now();
             let res, data;
@@ -1291,19 +1283,20 @@
                 });
                 const elapsed = Date.now() - t0;
                 if (res.ok) {
-                    finishStep(1, 'ok', '✓ 发送成功');
-                    addStepRow(1, 'speed', `服务器响应 ${elapsed}ms`, null, 'row-ok');
-                    dbgLog('ok', `HTTP ${res.status}, ${elapsed}ms`);
+                    finishStep(1, 'ok', '✓ 发送成功 ' + elapsed + 'ms');
+                    addStepRow(1, 'speed', '服务器响应 ' + elapsed + 'ms', null, 'row-ok');
+                    dbgLog('ok', 'HTTP ' + res.status + ', ' + elapsed + 'ms');
                 } else {
-                    finishStep(1, 'err', '✗ 接口错误');
-                    addStepRow(1, 'error_outline', `HTTP ${res.status}，接口报错`, null, 'row-err');
-                    dbgLog('err', `HTTP ${res.status}`);
+                    finishStep(1, 'err', '✗ 接口错误 HTTP ' + res.status);
+                    addStepRow(1, 'error_outline', 'HTTP ' + res.status + '，接口报错', '请检查 Supabase 函数是否正常部署', 'row-err');
+                    dbgLog('err', 'HTTP ' + res.status);
+                    if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第1步失败，请看上方红色步骤'; }
                     return;
                 }
             } catch(fetchErr) {
                 finishStep(1, 'err', '✗ 网络失败');
-                addStepRow(1, 'wifi_off', '网络请求失败：' + fetchErr.message, '请检查网络连接或 Supabase 函数是否正常运行', 'row-err');
-                dbgLog('err', fetchErr.message);
+                addStepRow(1, 'wifi_off', '网络请求失败：' + fetchErr.message, '请检查网络连接', 'row-err');
+                if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 网络连接失败'; }
                 return;
             }
 
@@ -1314,14 +1307,15 @@
                 if (data.error) {
                     finishStep(2, 'err', '✗ 业务错误');
                     addStepRow(2, 'error_outline', '接口返回错误：' + data.error, null, 'row-err');
-                    dbgLog('err', data.error);
+                    if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第2步失败：' + data.error; }
                     return;
                 }
                 finishStep(2, 'ok', '✓ 数据正常');
                 addStepRow(2, 'check_circle', '数据解析成功', null, 'row-ok');
             } catch(jsonErr) {
                 finishStep(2, 'err', '✗ 数据异常');
-                addStepRow(2, 'error_outline', '响应不是有效 JSON：' + jsonErr.message, null, 'row-err');
+                addStepRow(2, 'error_outline', '响应格式错误：' + jsonErr.message, null, 'row-err');
+                if (autoLabel) { autoLabel.className = 'done'; autoQ.textContent = '❌ 第2步失败'; }
                 return;
             }
 
@@ -1332,83 +1326,88 @@
                 addStepRow(3, 'edit', '改写前：' + question, null, '');
                 addStepRow(3, 'auto_awesome', '改写后：' + rewritten, null, 'row-ok');
                 finishStep(3, 'ok', '✓ 已改写');
-                dbgLog('ok', '改写后: ' + rewritten);
             } else {
-                addStepRow(3, 'remove_circle_outline', '未改写，直接使用原始问题', null, 'row-warn');
+                addStepRow(3, 'remove_circle_outline', '未做改写，直接使用原始问题', null, 'row-warn');
                 finishStep(3, 'warn', '⚠ 未改写');
-                dbgLog('warn', '未改写');
             }
 
             // ── 步骤 4：向量检索 ──
             const records = data.records || [];
             createStep(4, '向量检索 · 匹配员工汇报记录');
             if (records.length === 0) {
-                addStepRow(4, 'search_off', '没有找到相关汇报记录（相似度不足 0.65）', null, 'row-err');
-                addStepRow(4, 'info_outline', '可能原因 1：员工还未提交汇报', null, '');
-                addStepRow(4, 'info_outline', '可能原因 2：阈值 0.65 偏高，可尝试降低到 0.5', null, '');
-                addStepRow(4, 'info_outline', '可能原因 3：问题改写导致语义偏移', null, '');
-                finishStep(4, 'err', '✗ 无结果');
+                addStepRow(4, 'search_off', '没有找到任何相关汇报记录', '相似度不足 0.65，或数据库里还没有汇报数据', 'row-err');
+                addStepRow(4, 'info_outline', '原因1：员工还没有提交汇报', null, '');
+                addStepRow(4, 'info_outline', '原因2：阈值 0.65 偏高，可联系开发人员调低', null, '');
+                addStepRow(4, 'warning_amber', '⚠ 这是语音助理乱说的根本原因！没有资料就会编造', null, 'row-err');
+                finishStep(4, 'err', '✗ 无结果（这是问题所在）');
                 dbgLog('err', '无命中记录');
             } else {
-                addStepRow(4, 'done_all', `共命中 ${records.length} 条记录`, null, 'row-ok');
-                records.forEach((r, i) => {
+                addStepRow(4, 'done_all', '共找到 ' + records.length + ' 条相关记录', null, 'row-ok');
+                records.forEach(function(r, i) {
                     const sim = r.similarity ? (r.similarity * 100).toFixed(1) + '%' : '—';
                     const simClass = r.similarity >= 0.8 ? 'row-ok' : r.similarity >= 0.7 ? '' : 'row-warn';
                     addStepRow(4, 'person_outline',
-                        `${r.employee_name || '未知'}（${r.department || '无部门'}）· ${r.record_date || '—'} · 相似度 ${sim}`,
+                        (r.employee_name || '未知') + '（' + (r.department || '无部门') + '）· ' + (r.record_date || '—') + ' · 相似度 ' + sim,
                         r.summary ? r.summary.substring(0, 150) + (r.summary.length > 150 ? '…' : '') : null,
                         simClass
                     );
-                    dbgLog('data', `[${i+1}] ${r.employee_name} sim=${sim}`);
                 });
-                const hasLow = records.some(r => r.similarity < 0.7);
-                finishStep(4, hasLow ? 'warn' : 'ok', hasLow ? '⚠ 相似度偏低' : `✓ ${records.length}条记录`);
+                const hasLow = records.some(function(r){ return r.similarity < 0.7; });
+                finishStep(4, hasLow ? 'warn' : 'ok', hasLow ? '⚠ 相似度偏低' : '✓ ' + records.length + '条记录');
             }
 
             // ── 步骤 5：RAG 内容生成 ──
             const rag = data.rag_content || '';
-            createStep(5, '生成 RAG 上下文（发给语音助理的资料）');
+            createStep(5, '生成资料（发给语音助理的内容）');
             if (rag) {
-                addStepRow(5, 'article', `内容长度：${rag.length} 字`, null, 'row-ok');
+                addStepRow(5, 'article', '内容长度：' + rag.length + ' 字', null, 'row-ok');
                 addStepRow(5, 'preview', '内容预览：', rag.substring(0, 300) + (rag.length > 300 ? '…（已截断）' : ''), '');
-                finishStep(5, 'ok', `✓ ${rag.length}字`);
+                finishStep(5, 'ok', '✓ ' + rag.length + '字');
                 dbgLog('ok', 'rag_content ' + rag.length + '字');
             } else {
-                addStepRow(5, 'warning_amber', 'RAG 内容为空！语音助理将无资料可参考，容易乱说', null, 'row-err');
-                finishStep(5, 'err', '✗ 内容为空');
+                addStepRow(5, 'warning_amber', 'RAG 内容为空！语音助理没有任何资料可参考', '这会导致助理乱编答案', 'row-err');
+                finishStep(5, 'err', '✗ 内容为空（问题所在）');
                 dbgLog('err', 'rag为空');
             }
 
-            // ── 步骤 6：综合诊断 ──
-            createStep(6, '综合诊断');
+            // ── 步骤 6：最终诊断 ──
+            createStep(6, '最终诊断结论');
+            let finalOk = true;
             if (records.length === 0) {
-                addStepRow(6, 'report_problem', '❌ 没有检索到汇报记录 → 语音助理会乱编内容', null, 'row-err');
-                addStepRow(6, 'tips_and_updates', '建议：先让员工提交汇报，再测试查询', null, '');
-                finishStep(6, 'err', '需要修复');
+                finalOk = false;
+                addStepRow(6, 'report_problem', '❌ 根本原因：没有检索到任何员工汇报记录', null, 'row-err');
+                addStepRow(6, 'tips_and_updates', '解决方法：请先让员工提交汇报，再来测试查询', null, '');
+                finishStep(6, 'err', '❌ 需要修复');
             } else if (!rag) {
-                addStepRow(6, 'report_problem', '⚠️ 有记录但 RAG 内容为空，疑似后端拼接问题', null, 'row-warn');
-                finishStep(6, 'warn', '需要检查');
-            } else if (records.some(r => r.similarity < 0.7)) {
-                addStepRow(6, 'warning_amber', '⚠️ 部分记录相似度低于 70%，匹配不够精准', null, 'row-warn');
-                addStepRow(6, 'tips_and_updates', '建议：问题描述更具体，或检查汇报内容是否填写完整', null, '');
-                finishStep(6, 'warn', '基本正常');
+                finalOk = false;
+                addStepRow(6, 'report_problem', '⚠ 有记录但资料为空，后端拼接出问题', null, 'row-warn');
+                finishStep(6, 'warn', '⚠ 需要检查后端');
+            } else if (records.some(function(r){ return r.similarity < 0.7; })) {
+                addStepRow(6, 'warning_amber', '⚠ 有记录但相似度偏低，匹配不够精准', null, 'row-warn');
+                addStepRow(6, 'tips_and_updates', '建议：描述问题时更具体，如"张三今天工作进展"', null, '');
+                finishStep(6, 'warn', '⚠ 基本正常但不够精准');
             } else {
-                addStepRow(6, 'check_circle', '✅ 全流程正常！语音助理应能正确回答', null, 'row-ok');
-                finishStep(6, 'ok', '全部正常');
+                addStepRow(6, 'check_circle', '✅ 全部正常！语音助理应该能正确回答', null, 'row-ok');
+                finishStep(6, 'ok', '✅ 全部正常');
+            }
+
+            if (autoLabel) {
+                autoLabel.className = 'done';
+                if (autoQ) autoQ.textContent = finalOk && records.length > 0 ? '✅ 诊断完成，流程正常' : '❌ 发现问题，请看红色步骤';
             }
 
         } catch(e) {
             dbgLog('err', e.message);
-            const log = document.getElementById('debug-log');
             const errDiv = document.createElement('div');
             errDiv.style.cssText = 'background:rgba(255,77,109,.1);border:1.5px solid rgba(255,77,109,.3);border-radius:12px;padding:14px 16px;color:#e03050;font-size:13px;margin-top:8px';
             errDiv.textContent = '运行出错：' + e.message;
             log.appendChild(errDiv);
-        } finally {
-            runBtn.disabled = false;
-            runBtn.innerHTML = '<span class="material-icons-round" style="font-size:16px!important">play_arrow</span>运行';
+            if (autoLabel) { autoLabel.className = 'done'; if (autoQ) autoQ.textContent = '❌ 运行出错'; }
         }
     }
+
+    // 保留旧名称兼容
+    async function debugRun() { debugRunAuto(lastAsrText || (queryHistory.length > 0 ? queryHistory[0] : '今天小张汇报了什么')); }
 
     function debugCopy() {
         if (_debugLogs.length === 0) { showToast('暂无日志可复制', 'error'); return; }
