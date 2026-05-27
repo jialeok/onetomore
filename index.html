@@ -972,19 +972,11 @@
             if (DW.isConnected()) {
                 const speakText = buildSpeakText(question, records);
                 vmLog('📝 构建播报文本: ' + speakText.substring(0,60) + '…', 'cyan');
-                if (waitingForTTSEnd) {
-                    // "请稍等"还没播完，存起来等359触发
-                    vmLog('⏳ "请稍等"还在播，存pendingRagContent等359', 'warn');
-                    pendingRagContent = speakText;
-                } else if (waitingForQuery) {
-                    // 359已经来过了，直接播报
-                    vmLog('✅ 359已来过(waitingForQuery)，直接发500播报', 'ok');
-                    waitingForQuery = false;
-                    try { DW.sendTTSResult(speakText); } catch(e) { vmLog('❌ sendTTSResult失败: ' + e.message, 'err'); }
-                } else {
-                    // 兜底：直接播
-                    vmLog('⚡ 直接发500播报（兜底）', 'ok');
-                    try { DW.sendTTSResult(speakText); } catch(e) { vmLog('❌ sendTTSResult失败: ' + e.message, 'err'); }
+                // 新流程：510注入上下文 → 501触发豆包说话，走完整TTS链路
+                try {
+                    DW.injectAndSpeak(question, speakText);
+                } catch(e) {
+                    vmLog('❌ injectAndSpeak失败: ' + e.message, 'err');
                 }
             } else {
                 vmLog('❌ 查询完成但WS已断开，无法播报', 'err');
@@ -1351,7 +1343,28 @@
 
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
-        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected };
+        // 510注入上下文 + 501触发豆包说话，走完整TTS链路
+        const injectAndSpeak = (question, answerText) => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const now = Math.floor(Date.now() / 1000);
+            // 510: 注入一问一答到上下文
+            const ctx = JSON.stringify({
+                items: [
+                    { role: 'user', text: question, timestamp: now - 2 },
+                    { role: 'assistant', text: answerText, timestamp: now - 1 }
+                ]
+            });
+            vmLog('📥 发510 ConversationCreate注入上下文', 'cyan');
+            ws.send(encode(510, ctx, sid));
+            // 延迟100ms再发501，确保510被服务端处理
+            setTimeout(() => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                vmLog('🗣️ 发501 ChatTextQuery触发播报', 'cyan');
+                ws.send(encode(501, JSON.stringify({ content: question }), sid));
+            }, 100);
+        };
+
+        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected, injectAndSpeak };
     })();
 
     /* ══════════════════════════════════════════════════════════════ */
