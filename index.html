@@ -1178,19 +1178,13 @@
                     console.log('[OTM] ASREnded(459) | queryFired=' + queryFired + ' | pendingQuery=' + pendingQuery.substring(0, 30));
                     if (!queryFired && pendingQuery) {
                         queryFired = true;
-                        waitingForTTSEnd = true;
+                        waitingForTTSEnd = false;   // 不再等"请稍等"，查询完直接播报
                         pendingRagContent = null;
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
-                        
-                        vmLog('📤 发501"请稍等"(ChatTextQuery) → waitingForTTSEnd=true', 'warn');
-                        vmLog('🔍 触发数据库查询: ' + q.substring(0,30), 'warn');
-                        console.log('[OTM] 发501"请稍等" + 触发doQuery: ' + q.substring(0, 30));
-                        try {
-                            // 用501(ChatTextQuery)代替500，让豆包走正常闲聊链路说"请稍等"，不与自主TTS竞争
-                            ws.send(encode(501, JSON.stringify({ content: '好的，正在为您查询，请稍等。' }), sid));
-                        } catch(_) {}
+                        vmLog('🔍 触发数据库查询(不发安抚话术): ' + q.substring(0,30), 'warn');
+                        console.log('[OTM] 触发doQuery: ' + q.substring(0, 30));
                         doQuery(q);
                     } else {
                         vmLog('⚠️ ASREnded被忽略 | queryFired=' + queryFired + ' | pendingQuery为空=' + !pendingQuery, 'warn');
@@ -1249,25 +1243,25 @@
             btnText.textContent = '连接中…';
 
             // 加超时保护：Supabase读取失败或超时，不影响后续WS连接
-            try {
-                const timeout = ms => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
-                const [config] = await Promise.all([
-                    Promise.race([loadDoubaoConfig(), timeout(3000)]).catch(() => null)
-                ]);
-                if (config) {
-                    if (config.system_prompt) systemPrompt = config.system_prompt;
-                    if (config.speaker) speaker = config.speaker;
-                }
-                // 读取豆包专用系统提示词（scene='doubao'）
-                const promptRow = await Promise.race([
-                    sbClient.from('ai_prompts').select('content').eq('scene', 'doubao').limit(1).single(),
-                    timeout(3000)
-                ]).catch(() => null);
-                if (promptRow && promptRow.data && promptRow.data.content) {
-                    systemPrompt = promptRow.data.content;
-                }
-            } catch(_) {
-                // 读取配置失败，用默认值继续连接
+            // 用AbortController+setTimeout实现超时，避免DataCloneError
+            const fetchWithTimeout = (promise, ms) => {
+                let timer;
+                return new Promise(resolve => {
+                    timer = setTimeout(() => resolve(null), ms);
+                    promise.then(v => { clearTimeout(timer); resolve(v); }).catch(() => { clearTimeout(timer); resolve(null); });
+                });
+            };
+            const config = await fetchWithTimeout(loadDoubaoConfig(), 3000);
+            if (config) {
+                if (config.system_prompt) systemPrompt = config.system_prompt;
+                if (config.speaker) speaker = config.speaker;
+            }
+            const promptRow = await fetchWithTimeout(
+                sbClient.from('ai_prompts').select('content').eq('scene', 'doubao').limit(1).single(),
+                3000
+            );
+            if (promptRow && promptRow.data && promptRow.data.content) {
+                systemPrompt = promptRow.data.content;
             }
 
             setVoiceStatus('正在连接…', '');
