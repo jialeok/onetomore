@@ -922,7 +922,10 @@
         };
         const stopAudio = () => { queue = []; chunks = []; playing = false; };
 
+        // sanitize用于system_role等短字段，限500字
         const sanitize = s => s.replace(/[\r\n\t]/g, ' ').replace(/\\/g, '、').replace(/["]/g, '').replace(/\s{2,}/g, ' ').trim().substring(0, 500);
+        // sanitizeRag用于RAG内容，保留4000字，只做基本清洗
+        const sanitizeRag = s => s.replace(/\\/g, '、').replace(/["]/g, '').trim().substring(0, 4000);
 
         const onMsg = evt => {
             if (!(evt.data instanceof ArrayBuffer)) return;
@@ -959,20 +962,20 @@
                     flushAudio();
                 } else if (eid === 359) {
                     flushAudio();
-                    // 如果这次TTSEnded是"请稍等"播完，且查询结果已就绪，立即发502
                     if (waitingForTTSEnd) {
                         waitingForTTSEnd = false;
                         if (pendingRagContent !== null) {
+                            // 查询已完成，立即发502
                             const rag = pendingRagContent;
                             pendingRagContent = null;
                             try {
-                                const chatMsg = JSON.stringify({ external_rag: sanitize(rag.substring(0, 4000)) });
-                                ws.send(encode(502, chatMsg, sid));
+                                ws.send(encode(502, JSON.stringify({ external_rag: sanitizeRag(rag) }), sid));
                             } catch(_) {}
                         }
-                        // 本次是过渡话术轮，不重置queryFired，等502回答完再重置
+                        // 若pendingRagContent仍为null，说明查询还没完成
+                        // doQuery完成后会检查waitingForTTSEnd已为false，走sendRAGText直接发
                     } else {
-                        // 正常回答轮结束，重置标志，允许下一轮提问
+                        // 正常RAG回答轮结束，重置，允许下一轮提问
                         queryFired = false;
                         state = 'listening';
                         setVoiceStatus('正在聆听…', 'listening');
@@ -1137,7 +1140,7 @@
         const sendRAGText = ragText => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const chatMsg = JSON.stringify({
-                external_rag: sanitize(ragText.substring(0, 4000))
+                external_rag: sanitizeRag(ragText)
             });
             ws.send(encode(502, chatMsg, sid));
         };
