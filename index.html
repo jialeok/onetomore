@@ -1014,7 +1014,8 @@
                 if (config.speaker) speaker = config.speaker;
             }
 
-            const promptRow = await sbClient.from('prompts').select('content').eq('scene', 'query').limit(1).single();
+            // 读取豆包专用系统提示词（scene='doubao'），不再用Query Prompt覆盖
+            const promptRow = await sbClient.from('ai_prompts').select('content').eq('scene', 'doubao').limit(1).single();
             if (promptRow.data && promptRow.data.content) {
                 systemPrompt = promptRow.data.content;
             }
