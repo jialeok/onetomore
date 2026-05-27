@@ -954,23 +954,26 @@
             };
 
             console.log('[OTM] doQuery完成 | ragLen=' + ragContent.length + ' | records=' + records.length + ' | isConnected=' + DW.isConnected() + ' | waitingForTTSEnd=' + waitingForTTSEnd);
-            vmLog('📦 数据库查询完成 | 匹配' + records.length + '条 | waitingForTTSEnd=' + waitingForTTSEnd, records.length > 0 ? 'ok' : 'err');
+            vmLog('📦 数据库查询完成 | 匹配' + records.length + '条 | waitingForTTSEnd=' + waitingForTTSEnd + ' waitingForQuery=' + waitingForQuery, records.length > 0 ? 'ok' : 'err');
             if (DW.isConnected()) {
                 const speakText = buildSpeakText(question, records);
-                console.log('[OTM] 准备播报文本: ' + speakText.substring(0, 80));
                 vmLog('📝 构建播报文本: ' + speakText.substring(0,60) + '…', 'cyan');
                 if (waitingForTTSEnd) {
-                    vmLog('⏳ 正在等"请稍等"播完(359)，存入pendingRagContent', 'warn');
-                    console.log('[OTM] 请稍等还在播，存pendingRagContent等359触发');
+                    // "请稍等"还没播完，存起来等359触发
+                    vmLog('⏳ "请稍等"还在播，存pendingRagContent等359', 'warn');
                     pendingRagContent = speakText;
+                } else if (waitingForQuery) {
+                    // 359已经来过了，直接播报
+                    vmLog('✅ 359已来过，直接发500播报', 'ok');
+                    waitingForQuery = false;
+                    try { DW.sendTTSResult(speakText); } catch(e) { vmLog('❌ sendTTSResult失败: ' + e.message, 'err'); }
                 } else {
-                    vmLog('⚡ "请稍等"已播完，直接发500播报', 'ok');
-                    console.log('[OTM] 请稍等已播完，直接用500播报');
-                    try { DW.sendTTSResult(speakText); } catch(e) { console.error('[OTM] sendTTSResult失败', e); vmLog('❌ sendTTSResult发送失败: ' + e.message, 'err'); }
+                    // 兜底：直接播
+                    vmLog('⚡ 直接发500播报（兜底）', 'ok');
+                    try { DW.sendTTSResult(speakText); } catch(e) { vmLog('❌ sendTTSResult失败: ' + e.message, 'err'); }
                 }
             } else {
                 vmLog('❌ 查询完成但WS已断开，无法播报', 'err');
-                console.warn('[OTM] doQuery完成但WS已断开');
             }
 
             try {
@@ -993,8 +996,9 @@
     let lastAsrText = '';
     let queryFired = false;
     let pendingQuery = '';
-    let pendingRagContent = null;  // 查询结果缓存，等"请稍等"播完再发502
-    let waitingForTTSEnd = false;  // 标记当前正在播"请稍等"，等TTSEnded再发502
+    let pendingRagContent = null;  // 查询结果缓存，等"请稍等"播完再发500
+    let waitingForTTSEnd = false;  // 标记"请稍等"还在播，TTSEnded(359)还没来
+    let waitingForQuery = false;   // 标记359已来但doQuery还没回来，doQuery完成后直接发500
 
     const DW = (() => {
         let ws, sid, seq = 2, state = 'idle';
@@ -1121,22 +1125,21 @@
                         // "请稍等"播完了
                         waitingForTTSEnd = false;
                         if (pendingRagContent !== null) {
-                            // 查询已完成，直接用500播报结果（不依赖502时序）
                             vmLog('✅ "请稍等"已播完 + 查询结果已就绪 → 发500播报结果', 'ok');
-                            console.log('[OTM] 查询已完成，直接用500播报结果');
                             const rag = pendingRagContent;
                             pendingRagContent = null;
                             try { sendTTSResult(rag); } catch(_) {}
                         } else {
-                            vmLog('⏳ "请稍等"已播完，但数据库查询还没返回 → 继续等doQuery回调', 'warn');
-                            console.log('[OTM] 查询还没完成，等doQuery回调');
+                            // 查询还没回来，设标志：doQuery完成后直接发500，不再等359
+                            vmLog('⏳ "请稍等"已播完，查询未返回 → 设waitingForQuery标志', 'warn');
+                            waitingForQuery = true;
                         }
-                        // queryFired保持true，等500播完(再次359)再重置
                     } else {
                         // 正常回答轮（500播完 或 豆包自主回答）结束
-                        vmLog('✅ 正常回答轮结束 → 重置queryFired，恢复聆听', 'ok');
-                        console.log('[OTM] 正常回答轮结束，重置queryFired');
+                        vmLog('✅ 正常回答轮结束 → 重置所有状态，恢复聆听', 'ok');
                         queryFired = false;
+                        waitingForQuery = false;
+                        pendingRagContent = null;
                         state = 'listening';
                         setVoiceStatus('正在聆听…', 'listening');
                         setTopbarStatus('聆听中', true);
@@ -1170,8 +1173,8 @@
                         vmLog('🔍 触发数据库查询: ' + q.substring(0,30), 'warn');
                         console.log('[OTM] 发500"请稍等" + 触发doQuery: ' + q.substring(0, 30));
                         try {
-                            ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
-                            ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
+                            // start和end同时为true：一包发完，避免空content的end包导致豆包不触发TTSEnded
+                            ws.send(encode(500, JSON.stringify({ start: true, content: '好的，正在为您查询，请稍等。', end: true }), sid));
                         } catch(_) {}
                         doQuery(q);
                     } else {
