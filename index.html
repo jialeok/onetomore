@@ -1342,29 +1342,15 @@
 
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
-        // 201更新system_role为汇报内容 + 501触发豆包播报
+        // 直接用ChatTTSText(500)把汇报文本传给豆包念，不走推理
         const updateAndSpeak = (question, answerText) => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            // 重组提示词：让豆包照着汇报内容一字不差念出来
-            const newPrompt = '你是一个工作汇报播报助手。请将以下员工汇报内容完整朗读出来，不要添加任何内容，不要省略，一字不差：' + answerText;
-            vmLog('📋 发UpdateConfig重组提示词', 'cyan');
-            ws.send(encode(201, JSON.stringify({
-                dialog: { system_role: sanitize(newPrompt) }
-            }), sid));
-            // 延迟150ms确保201生效，再发501触发播报
-            setTimeout(() => {
-                if (!ws || ws.readyState !== WebSocket.OPEN) return;
-                vmLog('🗣️ 发501触发豆包播报', 'cyan');
-                ws.send(encode(501, JSON.stringify({ content: '请播报' }), sid));
-                // 播报完成后恢复基础提示词
-                setTimeout(() => {
-                    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-                    vmLog('🔄 恢复基础提示词', 'cyan');
-                    ws.send(encode(201, JSON.stringify({
-                        dialog: { system_role: sanitize(baseSystemPrompt) }
-                    }), sid));
-                }, 5000);
-            }, 150);
+            const text = sanitizeRag(answerText);
+            vmLog('🗣️ 发500 ChatTTSText直接播报 | ' + text.length + '字: ' + text.substring(0, 40) + '…', 'cyan');
+            // 分三包：start、内容、end
+            ws.send(encode(500, JSON.stringify({ start: true,  content: '',   end: false }), sid));
+            ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
+            ws.send(encode(500, JSON.stringify({ start: false, content: '',   end: true  }), sid));
         };
 
         return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected, updateAndSpeak };
