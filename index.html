@@ -1191,8 +1191,10 @@
                         vmLog('🔍 触发数据库查询: ' + q.substring(0,30), 'warn');
                         console.log('[OTM] 发500"请稍等" + 触发doQuery: ' + q.substring(0, 30));
                         try {
-                            // start和end同时为true：一包发完，避免空content的end包导致豆包不触发TTSEnded
-                            ws.send(encode(500, JSON.stringify({ start: true, content: '好的，正在为您查询，请稍等。', end: true }), sid));
+                            // 三包分发：start/content/end 分开，避免服务端把合包当空包处理导致无音频
+                            ws.send(encode(500, JSON.stringify({ start: true, content: '', end: false }), sid));
+                            ws.send(encode(500, JSON.stringify({ start: false, content: '好的，正在为您查询，请稍等。', end: false }), sid));
+                            ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
                         } catch(_) {}
                         doQuery(q);
                     } else {
