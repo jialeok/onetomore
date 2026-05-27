@@ -403,6 +403,69 @@
         #debug-copy-btn:hover { background: #333; color: #fff; }
         #debug-copy-btn .material-icons-round { font-size: 15px !important; }
 
+        /* Tab切换 */
+        #debug-tabs {
+            display: flex; gap: 0; border-bottom: 1px solid #222; flex-shrink: 0; background: #1a1a1a;
+        }
+        .dbg-tab {
+            padding: 8px 16px; font-size: 12px; font-weight: 700; cursor: pointer;
+            color: #555; border-bottom: 2px solid transparent; transition: color .15s;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
+            white-space: nowrap;
+        }
+        .dbg-tab.active { color: #f5c518; border-bottom-color: #f5c518; }
+        .dbg-tab:hover { color: #aaa; }
+
+        /* 语音链路状态卡片 */
+        #voice-monitor {
+            flex: 1; overflow-y: auto; padding: 12px 14px 20px;
+            background: #111; display: none; flex-direction: column; gap: 8px;
+        }
+        #voice-monitor.active { display: flex; }
+        .vm-card {
+            background: #1a1a1a; border-radius: 10px; padding: 12px 14px;
+            border-left: 3px solid #333;
+        }
+        .vm-card.ok { border-left-color: #00e676; }
+        .vm-card.err { border-left-color: #ff5252; }
+        .vm-card.warn { border-left-color: #f5c518; }
+        .vm-card.info { border-left-color: #5b4fff; }
+        .vm-card-title {
+            font-size: 11px; font-weight: 700; color: #555; letter-spacing: .5px;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif; margin-bottom: 4px;
+        }
+        .vm-card-val {
+            font-size: 13px; color: #fff; word-break: break-all; line-height: 1.5;
+        }
+        .vm-card-val.ok { color: #00e676; }
+        .vm-card-val.err { color: #ff5252; font-weight: 700; }
+        .vm-card-val.warn { color: #f5c518; }
+        #vm-timeline {
+            background: #1a1a1a; border-radius: 10px; padding: 12px 14px;
+        }
+        #vm-timeline-title {
+            font-size: 11px; font-weight: 700; color: #555; letter-spacing: .5px;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif; margin-bottom: 8px;
+        }
+        .vm-event {
+            display: flex; gap: 8px; align-items: flex-start;
+            padding: 3px 0; border-bottom: 1px solid #222; font-size: 12px;
+        }
+        .vm-event:last-child { border-bottom: none; }
+        .vm-event-time { color: #555; flex-shrink: 0; min-width: 60px; }
+        .vm-event-text { color: #ccc; flex: 1; word-break: break-all; }
+        .vm-event-text.ok { color: #00e676; }
+        .vm-event-text.err { color: #ff5252; font-weight: 700; }
+        .vm-event-text.warn { color: #f5c518; }
+        .vm-event-text.cyan { color: #40c4ff; }
+        #vm-clear-btn {
+            padding: 6px 12px; border-radius: 8px; border: 1px solid #333;
+            cursor: pointer; background: #222; color: #aaa;
+            font-size: 12px; display: flex; align-items: center; gap: 4px;
+            font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
+        }
+        #vm-clear-btn:hover { background: #333; color: #fff; }
+
         /* 日志行区域 */
         #debug-log {
             flex: 1; overflow-y: auto; padding: 14px 18px 20px;
@@ -582,10 +645,42 @@
                 <span class="material-icons-round">content_copy</span>复制日志
             </button>
         </div>
+        <div id="debug-tabs">
+            <div class="dbg-tab active" id="tab-rag" onclick="switchDebugTab('rag')">📋 查询诊断</div>
+            <div class="dbg-tab" id="tab-voice" onclick="switchDebugTab('voice')">🎙️ 语音链路实时</div>
+        </div>
         <div id="debug-log">
             <div class="dbg-wait">
                 <span class="material-icons-round">manage_search</span>
                 在上方输入问题，点击「运行」<br>每个步骤会显示成功还是失败，哪步出错一目了然
+            </div>
+        </div>
+        <div id="voice-monitor">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <div style="font-size:12px;color:#555;font-family:'PingFang SC',sans-serif;font-weight:700">实时语音链路状态（说话后自动更新）</div>
+                <button id="vm-clear-btn" onclick="vmClear()"><span class="material-icons-round" style="font-size:13px!important">delete</span>清空</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div class="vm-card" id="vm-ws">
+                    <div class="vm-card-title">WS连接状态</div>
+                    <div class="vm-card-val" id="vm-ws-val">未连接</div>
+                </div>
+                <div class="vm-card" id="vm-state-card">
+                    <div class="vm-card-title">当前阶段</div>
+                    <div class="vm-card-val" id="vm-state-val">—</div>
+                </div>
+                <div class="vm-card" id="vm-waiting-card">
+                    <div class="vm-card-title">waitingForTTSEnd</div>
+                    <div class="vm-card-val" id="vm-waiting-val">false</div>
+                </div>
+                <div class="vm-card" id="vm-pending-card">
+                    <div class="vm-card-title">pendingRagContent</div>
+                    <div class="vm-card-val" id="vm-pending-val">null</div>
+                </div>
+            </div>
+            <div id="vm-timeline">
+                <div id="vm-timeline-title">📡 事件时间线（最新在上）</div>
+                <div id="vm-events"><div style="color:#555;font-size:12px;font-family:'PingFang SC',sans-serif">等待语音交互…先连接助理再说话</div></div>
             </div>
         </div>
     </div>
@@ -822,17 +917,22 @@
             };
 
             console.log('[OTM] doQuery完成 | ragLen=' + ragContent.length + ' | records=' + records.length + ' | isConnected=' + DW.isConnected() + ' | waitingForTTSEnd=' + waitingForTTSEnd);
+            vmLog('📦 数据库查询完成 | 匹配' + records.length + '条 | waitingForTTSEnd=' + waitingForTTSEnd, records.length > 0 ? 'ok' : 'err');
             if (DW.isConnected()) {
                 const speakText = buildSpeakText(question, records);
                 console.log('[OTM] 准备播报文本: ' + speakText.substring(0, 80));
+                vmLog('📝 构建播报文本: ' + speakText.substring(0,60) + '…', 'cyan');
                 if (waitingForTTSEnd) {
+                    vmLog('⏳ 正在等"请稍等"播完(359)，存入pendingRagContent', 'warn');
                     console.log('[OTM] 请稍等还在播，存pendingRagContent等359触发');
                     pendingRagContent = speakText;
                 } else {
+                    vmLog('⚡ "请稍等"已播完，直接发500播报', 'ok');
                     console.log('[OTM] 请稍等已播完，直接用500播报');
-                    try { DW.sendTTSResult(speakText); } catch(e) { console.error('[OTM] sendTTSResult失败', e); }
+                    try { DW.sendTTSResult(speakText); } catch(e) { console.error('[OTM] sendTTSResult失败', e); vmLog('❌ sendTTSResult发送失败: ' + e.message, 'err'); }
                 }
             } else {
+                vmLog('❌ 查询完成但WS已断开，无法播报', 'err');
                 console.warn('[OTM] doQuery完成但WS已断开');
             }
 
@@ -948,6 +1048,7 @@
                 if (eid === 50) {
                     setVoiceStatus('连接成功，初始化中…', 'connected');
                     setTopbarStatus('初始化中', true);
+                    vmLog('🔗 [50] ConnectionStarted → 发StartSession', 'ok');
                     ws.send(encode(100, JSON.stringify({
                         tts: { speaker, audio_config: { channel: 1, format: 'ogg_opus', sample_rate: 24000 }, extra: {} },
                         asr: { audio_info: { format: 'pcm', sample_rate: 16000, channel: 1 } },
@@ -964,6 +1065,7 @@
                     setTopbarStatus('已就绪', true);
                     document.getElementById('tap-btn').classList.remove('hidden');
                     setWave(false, false);
+                    vmLog('✅ [150] SessionStarted → 可以说话了', 'ok');
                 } else if (eid === 350) {
                     const t = j.text || '';
                     if (t) setSubtitle(t, false);
@@ -971,26 +1073,31 @@
                     setVoiceStatus('助理正在回答…', 'speaking');
                     setTopbarStatus('回答中', true);
                     setWave(true, false);
+                    vmLog('🔊 [350] TTSSentenceStart | 文本: ' + (t||'(空)').substring(0,40), 'cyan');
                 } else if (eid === 351) {
                     flushAudio();
                 } else if (eid === 359) {
                     flushAudio();
+                    vmLog('🔔 [359] TTSEnded | waitingForTTSEnd=' + waitingForTTSEnd + ' | pendingRag=' + (pendingRagContent ? pendingRagContent.length+'字' : 'null'), waitingForTTSEnd ? 'warn' : 'ok');
                     console.log('[OTM] TTSEnded(359) | waitingForTTSEnd=' + waitingForTTSEnd + ' | pendingRagContent=' + (pendingRagContent ? pendingRagContent.length + '字' : 'null'));
                     if (waitingForTTSEnd) {
                         // "请稍等"播完了
                         waitingForTTSEnd = false;
                         if (pendingRagContent !== null) {
                             // 查询已完成，直接用500播报结果（不依赖502时序）
+                            vmLog('✅ "请稍等"已播完 + 查询结果已就绪 → 发500播报结果', 'ok');
                             console.log('[OTM] 查询已完成，直接用500播报结果');
                             const rag = pendingRagContent;
                             pendingRagContent = null;
                             try { sendTTSResult(rag); } catch(_) {}
                         } else {
+                            vmLog('⏳ "请稍等"已播完，但数据库查询还没返回 → 继续等doQuery回调', 'warn');
                             console.log('[OTM] 查询还没完成，等doQuery回调');
                         }
                         // queryFired保持true，等500播完(再次359)再重置
                     } else {
                         // 正常回答轮（500播完 或 豆包自主回答）结束
+                        vmLog('✅ 正常回答轮结束 → 重置queryFired，恢复聆听', 'ok');
                         console.log('[OTM] 正常回答轮结束，重置queryFired');
                         queryFired = false;
                         state = 'listening';
@@ -1001,6 +1108,7 @@
                     }
                 } else if (eid === 450) {
                     stopAudio();
+                    vmLog('⚡ [450] ASRInfo → 检测到用户说话，打断播放', 'warn');
                 } else if (eid === 451) {
                     // ASRResponse：用户还在说话，只记录文本，不触发任何动作
                     const t = (j.results || []).map(r => r.text).join('');
@@ -1008,9 +1116,11 @@
                         setSubtitle(t, true);
                         setVoiceStatus('我听到：' + t.substring(0, 30), 'listening');
                         pendingQuery = t;
+                        vmLog('👂 [451] ASRResponse: ' + t.substring(0,40), '');
                     }
                 } else if (eid === 459) {
                     // ASREnded：用户说完话
+                    vmLog('🎤 [459] ASREnded | queryFired=' + queryFired + ' | 识别内容: ' + (pendingQuery||'(空)').substring(0,30), 'cyan');
                     console.log('[OTM] ASREnded(459) | queryFired=' + queryFired + ' | pendingQuery=' + pendingQuery.substring(0, 30));
                     if (!queryFired && pendingQuery) {
                         queryFired = true;
@@ -1019,6 +1129,8 @@
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
+                        vmLog('📤 发500"请稍等" → waitingForTTSEnd=true', 'warn');
+                        vmLog('🔍 触发数据库查询: ' + q.substring(0,30), 'warn');
                         console.log('[OTM] 发500"请稍等" + 触发doQuery: ' + q.substring(0, 30));
                         try {
                             ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
@@ -1026,6 +1138,7 @@
                         } catch(_) {}
                         doQuery(q);
                     } else {
+                        vmLog('⚠️ ASREnded被忽略 | queryFired=' + queryFired + ' | pendingQuery为空=' + !pendingQuery, 'warn');
                         console.log('[OTM] ASREnded忽略: queryFired=' + queryFired + ' pendingQuery为空=' + !pendingQuery);
                     }
                 } else if (eid === 153 || eid === 599) {
@@ -1165,6 +1278,7 @@
         const sendTTSResult = text => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             console.log('[OTM] 发送500 TTS直接播报 | len=' + text.length);
+            vmLog('📢 发送500 ChatTTSText播报 | ' + text.length + '字: ' + text.substring(0,40) + '…', 'ok');
             // 按句号等断句，每包一句
             const parts = text.split(/(?<=[。！？])/) .filter(s => s.trim());
             if (parts.length === 0) parts.push(text);
@@ -1208,6 +1322,75 @@
             }, 2500);
         }
     };
+
+    /* ══════════════════════════════════════════════════════════════ */
+    /*  语音链路实时监控                                                */
+    /* ══════════════════════════════════════════════════════════════ */
+    function switchDebugTab(tab) {
+        document.getElementById('tab-rag').classList.toggle('active', tab === 'rag');
+        document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
+        document.getElementById('debug-log').style.display = tab === 'rag' ? 'flex' : 'none';
+        const vm = document.getElementById('voice-monitor');
+        vm.style.display = tab === 'voice' ? 'flex' : 'none';
+        if (tab === 'voice') vmRefreshStatus();
+    }
+
+    function vmClear() {
+        document.getElementById('vm-events').innerHTML = '<div style="color:#555;font-size:12px;font-family:\'PingFang SC\',sans-serif">已清空，等待新的语音交互…</div>';
+    }
+
+    // 刷新状态卡片
+    function vmRefreshStatus() {
+        const wsOk = DW.isConnected();
+        const wCard = document.getElementById('vm-ws');
+        const wVal = document.getElementById('vm-ws-val');
+        wVal.textContent = wsOk ? '✅ 已连接' : '❌ 未连接';
+        wVal.className = 'vm-card-val ' + (wsOk ? 'ok' : 'err');
+        wCard.className = 'vm-card ' + (wsOk ? 'ok' : 'err');
+
+        const stateVal = document.getElementById('vm-state-val');
+        stateVal.textContent = document.getElementById('vs-text').textContent || '—';
+
+        const waitVal = document.getElementById('vm-waiting-val');
+        waitVal.textContent = waitingForTTSEnd ? '⏳ true（等TTSEnded）' : 'false（空闲）';
+        waitVal.className = 'vm-card-val ' + (waitingForTTSEnd ? 'warn' : 'ok');
+        document.getElementById('vm-waiting-card').className = 'vm-card ' + (waitingForTTSEnd ? 'warn' : 'ok');
+
+        const pendVal = document.getElementById('vm-pending-val');
+        if (pendingRagContent === null) {
+            pendVal.textContent = 'null（无待播内容）';
+            pendVal.className = 'vm-card-val';
+            document.getElementById('vm-pending-card').className = 'vm-card';
+        } else {
+            pendVal.textContent = '✅ 有内容 ' + pendingRagContent.length + '字：' + pendingRagContent.substring(0, 30) + '…';
+            pendVal.className = 'vm-card-val ok';
+            document.getElementById('vm-pending-card').className = 'vm-card ok';
+        }
+    }
+
+    // 向语音链路时间线写日志
+    function vmLog(text, level) {
+        const eventsEl = document.getElementById('vm-events');
+        if (!eventsEl) return;
+        // 清除"等待"占位
+        if (eventsEl.children.length === 1 && eventsEl.children[0].style && !eventsEl.children[0].className.includes('vm-event')) {
+            eventsEl.innerHTML = '';
+        }
+        const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const div = document.createElement('div');
+        div.className = 'vm-event';
+        div.innerHTML = '<span class="vm-event-time">' + ts + '</span><span class="vm-event-text ' + (level||'') + '">' + escHtml(text) + '</span>';
+        // 新事件插到最上面
+        eventsEl.insertBefore(div, eventsEl.firstChild);
+        // 只保留50条
+        while (eventsEl.children.length > 50) eventsEl.removeChild(eventsEl.lastChild);
+        // 同步刷新状态卡片（如果面板开着）
+        if (document.getElementById('tab-voice').classList.contains('active')) {
+            vmRefreshStatus();
+        }
+        // 同时写到_debugLogs供复制
+        _debugLogs.push({ text: '[语音] ' + text, color: level || 'green' });
+    }
 
     /* ══════════════════════════════════════════════════════════════ */
     /*  DEBUG 调试面板                                                 */
