@@ -1001,9 +1001,10 @@
     let lastAsrText = '';
     let queryFired = false;
     let pendingQuery = '';
-    let pendingRagContent = null;  // 查询结果缓存，等"请稍等"播完再发500
-    let waitingForTTSEnd = false;  // 标记"请稍等"还在播，TTSEnded(359)还没来
-    let waitingForQuery = false;   // 标记359已来但doQuery还没回来，doQuery完成后直接发500
+    let pendingRagContent = null;  // 兼容vmRefreshStatus中的引用，保留声明
+    let waitingForTTSEnd = false;  // 兼容vmRefreshStatus中的引用，保留声明
+    let waitingForQuery = false;   // 兼容vmRefreshStatus中的引用，保留声明
+    let ttsStreamOpen = false;     // 标记500流是否已打开（start已发，end未发）
 
     const DW = (() => {
         let ws, sid, seq = 2, state = 'idle';
@@ -1124,33 +1125,13 @@
                     flushAudio();
                 } else if (eid === 359) {
                     flushAudio();
-                    vmLog('🔔 [359] TTSEnded | waitingForTTSEnd=' + waitingForTTSEnd + ' | pendingRag=' + (pendingRagContent ? pendingRagContent.length+'字' : 'null'), waitingForTTSEnd ? 'warn' : 'ok');
-                    console.log('[OTM] TTSEnded(359) | waitingForTTSEnd=' + waitingForTTSEnd + ' | pendingRagContent=' + (pendingRagContent ? pendingRagContent.length + '字' : 'null'));
-                    if (waitingForTTSEnd) {
-                        // "请稍等"播完了
-                        waitingForTTSEnd = false;
-                        if (pendingRagContent !== null) {
-                            vmLog('✅ "请稍等"已播完 + 查询结果已就绪 → 发500播报结果', 'ok');
-                            const rag = pendingRagContent;
-                            pendingRagContent = null;
-                            try { sendTTSResult(rag); } catch(_) {}
-                        } else {
-                            // 查询还没回来，设标志：doQuery完成后直接发500，不再等359
-                            vmLog('⏳ "请稍等"已播完，查询未返回 → 设waitingForQuery标志', 'warn');
-                            waitingForQuery = true;
-                        }
-                    } else {
-                        // TTS播完（500播完 或 豆包自主回答结束）
-                        vmLog('✅ TTS播完(359) → 恢复聆听 | queryFired=' + queryFired, 'ok');
-                        // 注意：queryFired由doQuery完成后统一重置，不在这里重置
-                        waitingForQuery = false;
-                        pendingRagContent = null;
-                        state = 'listening';
-                        setVoiceStatus('正在聆听…', 'listening');
-                        setTopbarStatus('聆听中', true);
-                        setWave(true, true);
-                        setSubtitle('', true);
-                    }
+                    ttsStreamOpen = false;
+                    vmLog('🔔 [359] TTSEnded → 恢复聆听', 'ok');
+                    state = 'listening';
+                    setVoiceStatus('正在聆听…', 'listening');
+                    setTopbarStatus('聆听中', true);
+                    setWave(true, true);
+                    setSubtitle('', true);
                 } else if (eid === 450) {
                     stopAudio();
                     vmLog('⚡ [450] ASRInfo → 检测到用户说话，打断播放', 'warn');
@@ -1169,13 +1150,13 @@
                     console.log('[OTM] ASREnded(459) | queryFired=' + queryFired + ' | pendingQuery=' + pendingQuery.substring(0, 30));
                     if (!queryFired && pendingQuery) {
                         queryFired = true;
-                        waitingForTTSEnd = false;   // 不再等"请稍等"，查询完直接播报
-                        pendingRagContent = null;
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
-                        vmLog('🔍 触发数据库查询(不发安抚话术): ' + q.substring(0,30), 'warn');
-                        console.log('[OTM] 触发doQuery: ' + q.substring(0, 30));
+                        // ★ 立刻发500安抚包（start:true, end:false），占住豆包TTS状态，防止它自主推理
+                        vmLog('⏳ 发500安抚包(start) → 占住TTS，同时触发查询: ' + q.substring(0,30), 'warn');
+                        ttsStreamOpen = true;
+                        ws.send(encode(500, JSON.stringify({ start: true, content: '好的，正在为您查询，请稍等。', end: false }), sid));
                         doQuery(q);
                     } else {
                         vmLog('⚠️ ASREnded被忽略 | queryFired=' + queryFired + ' | pendingQuery为空=' + !pendingQuery, 'warn');
@@ -1343,14 +1324,22 @@
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
         // 直接用ChatTTSText(500)把汇报文本传给豆包念，不走推理
+        // 如果500流已打开（安抚包已发），直接续发内容+end；否则新开一轮流
         const updateAndSpeak = (question, answerText) => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const text = sanitizeRag(answerText);
-            vmLog('🗣️ 发500 ChatTTSText直接播报 | ' + text.length + '字: ' + text.substring(0, 40) + '…', 'cyan');
-            // 分三包：start、内容、end
-            ws.send(encode(500, JSON.stringify({ start: true,  content: '',   end: false }), sid));
-            ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
-            ws.send(encode(500, JSON.stringify({ start: false, content: '',   end: true  }), sid));
+            vmLog('🗣️ 发500续发内容 | ttsStreamOpen=' + ttsStreamOpen + ' | ' + text.length + '字: ' + text.substring(0, 40) + '…', 'cyan');
+            if (ttsStreamOpen) {
+                // 安抚包流还开着，直接续发内容+end
+                ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
+                ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
+                ttsStreamOpen = false;
+            } else {
+                // 流已经关了（极少数：查询比安抚TTS还快），重新开一轮
+                ws.send(encode(500, JSON.stringify({ start: true,  content: '',   end: false }), sid));
+                ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
+                ws.send(encode(500, JSON.stringify({ start: false, content: '',   end: true  }), sid));
+            }
         };
 
         return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected, updateAndSpeak };
