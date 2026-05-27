@@ -1098,17 +1098,31 @@
     let _debugLogs = [];
 
     async function initDebugMode() {
+        // 保底：URL 加 ?debug=1 也能强制显示（无需数据库）
+        if (new URLSearchParams(location.search).get('debug') === '1') {
+            showDebugBtn(); return;
+        }
         try {
-            const { data } = await sbClient
+            const { data, error } = await sbClient
                 .from('model_configs')
                 .select('debug_mode')
                 .limit(1)
                 .single();
-            if (data && data.debug_mode) {
-                const btn = document.getElementById('debug-btn');
-                if (btn) btn.style.display = 'flex';
+            if (error) {
+                // debug_mode 列不存在时静默忽略，不影响页面
+                console.warn('[Debug] model_configs查询失败:', error.message,
+                    '\n提示：如需使用Debug按钮，请在Supabase执行：ALTER TABLE model_configs ADD COLUMN IF NOT EXISTS debug_mode boolean DEFAULT false;');
+                return;
             }
-        } catch(_) {}
+            if (data && data.debug_mode) showDebugBtn();
+        } catch(e) {
+            console.warn('[Debug] initDebugMode异常:', e.message);
+        }
+    }
+
+    function showDebugBtn() {
+        const btn = document.getElementById('debug-btn');
+        if (btn) btn.style.display = 'flex';
     }
 
     function openDebugPanel() {
@@ -1242,13 +1256,48 @@
     }
 
     function debugCopy() {
-        const lines = _debugLogs.map(l => `[${l.ts}][${l.tag.toUpperCase()}] ${l.msg}${l.extra !== undefined ? '\n  ' + (typeof l.extra === 'string' ? l.extra : JSON.stringify(l.extra)) : ''}`);
-        const text = lines.join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            showToast('日志已复制', 'success');
-        }).catch(() => {
-            showToast('复制失败，请手动选中文字', 'error');
+        if (_debugLogs.length === 0) { showToast('暂无日志可复制', 'error'); return; }
+        const lines = _debugLogs.map(function(l) {
+            var extra = '';
+            if (l.extra !== undefined) {
+                extra = '\n    ' + (typeof l.extra === 'string' ? l.extra : JSON.stringify(l.extra, null, 2)).replace(/\n/g, '\n    ');
+            }
+            return '[' + l.ts + '][' + l.tag.toUpperCase() + '] ' + l.msg + extra;
         });
+        const text = '=== OneToMore RAG 调试日志 ===\n' + lines.join('\n') + '\n=== END ===';
+
+        // 优先用 clipboard API，失败则用 textarea 降级
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function() {
+                showToast('✅ 日志已复制，可直接粘贴给开发者', 'success');
+                flashCopyBtn();
+            }).catch(function() { fallbackCopy(text); });
+        } else {
+            fallbackCopy(text);
+        }
+    }
+
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, 99999);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+        if (ok) { showToast('✅ 日志已复制', 'success'); flashCopyBtn(); }
+        else { showToast('复制失败，请长按日志区域手动选中', 'error'); }
+    }
+
+    function flashCopyBtn() {
+        var btn = document.getElementById('debug-copy-btn');
+        if (!btn) return;
+        var orig = btn.innerHTML;
+        btn.innerHTML = '<span class="material-icons-round" style="font-size:14px!important">check</span>已复制';
+        btn.style.color = '#00e6a8';
+        setTimeout(function() { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
     }
 
 </script>
