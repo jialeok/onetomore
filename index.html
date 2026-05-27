@@ -804,8 +804,13 @@
 
             showResultContent(records, ragContent);
 
-            if (ragContent && DW.isConnected()) {
-                DW.sendRAGText(ragContent);
+            if (DW.isConnected()) {
+                if (ragContent) {
+                    DW.sendRAGText(ragContent);
+                } else {
+                    // 没查到记录，发RAG告知豆包直接说
+                    DW.sendRAGText('未检索到"' + question + '"相关的员工汇报记录，请直接告知用户该员工今日暂未提交汇报。');
+                }
             }
 
             try {
@@ -959,12 +964,11 @@
                         if (!queryFired) {
                             queryFired = true;
                             if (asrDebounce) clearTimeout(asrDebounce);
-                            // 先让豆包说"请稍等"
-                            const waitMsg = JSON.stringify({
-                                event: 'ChatRAGText',
-                                text: '用户问：' + t + '\n\n【重要】请先说"好的，请稍等，正在为您查询"，然后等待系统提供数据后再回答，不要自行编造任何内容。'
-                            });
-                            try { ws.send(encode(200, waitMsg, sid)); } catch(_) {}
+                            // 用ChatTTSText发"请稍等"安抚话术（官方文档事件500）
+                            try {
+                                ws.send(encode(500, JSON.stringify({ start: true, content: '好的，请稍等，正在为您查询', end: false }), sid));
+                                ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
+                            } catch(_) {}
                             // 同时后台查询
                             doQuery(t);
                             pendingQuery = '';
@@ -1095,18 +1099,25 @@
             document.getElementById('tap-btn').classList.add('hidden');
         };
 
+        // 发送外部RAG数据给豆包（官方文档：事件502，字段external_rag）
         const sendRAGText = ragText => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const chatMsg = JSON.stringify({
-                event: 'ChatRAGText',
-                text: sanitize(ragText.substring(0, 4000))
+                external_rag: sanitize(ragText.substring(0, 4000))
             });
-            ws.send(encode(200, chatMsg, sid));
+            ws.send(encode(502, chatMsg, sid));
+        };
+
+        // 发送客户端合成文本（官方文档：事件500，用于"请稍等"安抚话术）
+        const sendTTSText = (text, isStart, isEnd) => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const msg = JSON.stringify({ start: isStart, content: text, end: isEnd });
+            ws.send(encode(500, msg, sid));
         };
 
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
-        return { toggleConnect, connect, disconnect, startMic, sendRAGText, isConnected };
+        return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, isConnected };
     })();
 
     /* ══════════════════════════════════════════════════════════════ */
