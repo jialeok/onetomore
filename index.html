@@ -792,7 +792,7 @@
             const res = await fetch(SUPABASE_URL + '/functions/v1/query-handler', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-                body: JSON.stringify({ question })
+                body: JSON.stringify({ question, threshold: 0.45 })
             });
 
             const data = await res.json();
@@ -1222,7 +1222,7 @@
         try {
             // ── 步骤 1 ──
             addSection('步骤1：发送问题到查询接口');
-            addLine('  阈值：0.65  最多返回：5条', 'gray');
+            addLine('  阈值：0.45  最多返回：5条', 'gray');
 
             const t0 = Date.now();
             let res, data;
@@ -1230,7 +1230,7 @@
                 res = await fetch(SUPABASE_URL + '/functions/v1/query-handler', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-                    body: JSON.stringify({ question, top_k: 5, threshold: 0.65 })
+                    body: JSON.stringify({ question, top_k: 5, threshold: 0.45 })
                 });
                 const elapsed = Date.now() - t0;
                 if (res.ok) {
@@ -1295,9 +1295,14 @@
             // ── 步骤 5 ──
             const rag = data.rag_content || '';
             addSection('步骤5：生成资料（发给语音助理的内容）');
-            if (rag) {
+            // records为空时，RAG只是空模板，不算有效内容
+            const ragValid = rag && records.length > 0;
+            if (ragValid) {
                 addLine('✓ 内容长度：' + rag.length + ' 字', 'green');
                 addLine('  预览：' + rag.substring(0, 120) + (rag.length > 120 ? '…' : ''), 'gray');
+            } else if (rag && records.length === 0) {
+                addLine('✗ 资料是空模板（没有员工记录填入）', 'red');
+                addLine('  语音助理拿到的是空内容，所以会乱编', 'red');
             } else {
                 addLine('✗ 资料为空！语音助理将没有任何参考内容', 'red');
                 addLine('  这会导致助理编造答案', 'red');
@@ -1308,12 +1313,14 @@
             let finalOk = true;
             if (records.length === 0) {
                 finalOk = false;
-                addLine('❌ 根本原因：数据库里没有相关汇报记录', 'red');
-                addLine('   解决：让员工先提交汇报，再来测试', 'yellow');
-            } else if (!rag) {
+                addLine('❌ 根本原因：向量检索没有找到相关汇报记录', 'red');
+                addLine('   可能1：员工还没有提交汇报', 'yellow');
+                addLine('   可能2：汇报内容与提问关键词差太远', 'yellow');
+                addLine('   解决：让员工先提交汇报，或换个说法提问', 'yellow');
+            } else if (!ragValid) {
                 finalOk = false;
                 addLine('⚠ 有记录但资料为空，后端拼接出问题', 'yellow');
-            } else if (records.some(function(r){ return r.similarity < 0.7; })) {
+            } else if (records.some(function(r){ return r.similarity < 0.6; })) {
                 addLine('⚠ 记录匹配度偏低，建议提问时更具体', 'yellow');
             } else {
                 addLine('✅ 全部正常！语音助理应该能正确回答', 'green');
