@@ -1125,7 +1125,6 @@
                     flushAudio();
                 } else if (eid === 359) {
                     flushAudio();
-                    ttsStreamOpen = false;
                     vmLog('🔔 [359] TTSEnded → 恢复聆听', 'ok');
                     state = 'listening';
                     setVoiceStatus('正在聆听…', 'listening');
@@ -1153,10 +1152,8 @@
                         if (asrDebounce) clearTimeout(asrDebounce);
                         const q = pendingQuery;
                         pendingQuery = '';
-                        // ★ 立刻发500安抚包（start:true, end:false），占住豆包TTS状态，防止它自主推理
-                        vmLog('⏳ 发500安抚包(start) → 占住TTS，同时触发查询: ' + q.substring(0,30), 'warn');
-                        ttsStreamOpen = true;
-                        ws.send(encode(500, JSON.stringify({ start: true, content: '好的，正在为您查询，请稍等。', end: false }), sid));
+                        // 直接触发查询，不发安抚包，避免TTS流状态混乱导致结果无法播报
+                        vmLog('🔍 触发数据库查询(不发安抚话术): ' + q.substring(0,30), 'warn');
                         doQuery(q);
                     } else {
                         vmLog('⚠️ ASREnded被忽略 | queryFired=' + queryFired + ' | pendingQuery为空=' + !pendingQuery, 'warn');
@@ -1324,22 +1321,14 @@
         const isConnected = () => ws && ws.readyState === WebSocket.OPEN;
 
         // 直接用ChatTTSText(500)把汇报文本传给豆包念，不走推理
-        // 如果500流已打开（安抚包已发），直接续发内容+end；否则新开一轮流
+        // 不再依赖安抚包状态，统一新开一轮流
         const updateAndSpeak = (question, answerText) => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const text = sanitizeRag(answerText);
-            vmLog('🗣️ 发500续发内容 | ttsStreamOpen=' + ttsStreamOpen + ' | ' + text.length + '字: ' + text.substring(0, 40) + '…', 'cyan');
-            if (ttsStreamOpen) {
-                // 安抚包流还开着，直接续发内容+end
-                ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
-                ws.send(encode(500, JSON.stringify({ start: false, content: '', end: true }), sid));
-                ttsStreamOpen = false;
-            } else {
-                // 流已经关了（极少数：查询比安抚TTS还快），重新开一轮
-                ws.send(encode(500, JSON.stringify({ start: true,  content: '',   end: false }), sid));
-                ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
-                ws.send(encode(500, JSON.stringify({ start: false, content: '',   end: true  }), sid));
-            }
+            vmLog('🗣️ 发500 ChatTTSText直接播报 | ' + text.length + '字: ' + text.substring(0, 40) + '…', 'cyan');
+            ws.send(encode(500, JSON.stringify({ start: true,  content: '',   end: false }), sid));
+            ws.send(encode(500, JSON.stringify({ start: false, content: text, end: false }), sid));
+            ws.send(encode(500, JSON.stringify({ start: false, content: '',   end: true  }), sid));
         };
 
         return { toggleConnect, connect, disconnect, startMic, sendRAGText, sendTTSText, sendTTSResult, isConnected, updateAndSpeak };
