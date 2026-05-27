@@ -943,9 +943,24 @@
                 const r = filtered[0];
                 const name = r.employee_name || '该员工';
                 const date = r.record_date || '';
-                let summary = (r.summary || '').replace(/[\r\n]+/g, ' ').replace(/^(员工|部门|日期|---)[^\x00]*?：/g, '').trim();
-                if (summary.length > 120) summary = summary.substring(0, 120) + '……';
-                let text = name + '在' + (date || '今天') + '的汇报：' + summary;
+                // 清理summary里的字段头：去掉"员工：xxx"、"部门：xxx"、"日期：xxx"、"---"等
+                let summary = (r.summary || '')
+                    .replace(/员工[：:][^
+]*/g, '')
+                    .replace(/部门[：:][^
+]*/g, '')
+                    .replace(/日期[：:][^
+]*/g, '')
+                    .replace(/---+/g, '')
+                    .replace(/今日完成事项[：:]/g, '')
+                    .replace(/遇到的问题[：:]/g, '，遇到的问题是：')
+                    .replace(/明日计划[：:]/g, '，明日计划：')
+                    .replace(/[
+]+/g, ' ')
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+                if (summary.length > 150) summary = summary.substring(0, 150) + '……';
+                let text = name + (date ? '今日' : '') + '的工作汇报：' + summary;
                 const extra = filtered.length - 1;
                 if (extra > 0) {
                     text += '。另有' + extra + '条相关记录，请查看屏幕。';
@@ -955,6 +970,9 @@
 
             console.log('[OTM] doQuery完成 | ragLen=' + ragContent.length + ' | records=' + records.length + ' | isConnected=' + DW.isConnected() + ' | waitingForTTSEnd=' + waitingForTTSEnd);
             vmLog('📦 数据库查询完成 | 匹配' + records.length + '条 | waitingForTTSEnd=' + waitingForTTSEnd + ' waitingForQuery=' + waitingForQuery, records.length > 0 ? 'ok' : 'err');
+            // doQuery完成后立即重置queryFired，允许下一次说话触发新查询
+            queryFired = false;
+            vmLog('🔓 queryFired重置为false，下次说话可正常触发', 'ok');
             if (DW.isConnected()) {
                 const speakText = buildSpeakText(question, records);
                 vmLog('📝 构建播报文本: ' + speakText.substring(0,60) + '…', 'cyan');
@@ -964,7 +982,7 @@
                     pendingRagContent = speakText;
                 } else if (waitingForQuery) {
                     // 359已经来过了，直接播报
-                    vmLog('✅ 359已来过，直接发500播报', 'ok');
+                    vmLog('✅ 359已来过(waitingForQuery)，直接发500播报', 'ok');
                     waitingForQuery = false;
                     try { DW.sendTTSResult(speakText); } catch(e) { vmLog('❌ sendTTSResult失败: ' + e.message, 'err'); }
                 } else {
@@ -1135,9 +1153,9 @@
                             waitingForQuery = true;
                         }
                     } else {
-                        // 正常回答轮（500播完 或 豆包自主回答）结束
-                        vmLog('✅ 正常回答轮结束 → 重置所有状态，恢复聆听', 'ok');
-                        queryFired = false;
+                        // TTS播完（500播完 或 豆包自主回答结束）
+                        vmLog('✅ TTS播完(359) → 恢复聆听 | queryFired=' + queryFired, 'ok');
+                        // 注意：queryFired由doQuery完成后统一重置，不在这里重置
                         waitingForQuery = false;
                         pendingRagContent = null;
                         state = 'listening';
