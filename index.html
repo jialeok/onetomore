@@ -809,7 +809,7 @@
             }
 
             try {
-                await sbClient.from('conversations').insert({
+                await sbClient.from('query_logs').insert({
                     question: question,
                     rag_content: ragContent,
                     matched_count: records.length
