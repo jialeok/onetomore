@@ -1333,19 +1333,13 @@
             ws.send(encode(502, chatMsg, sid));
         };
 
-        // 用ChatTTSText(500)直接让豆包念出查询结果文本（不依赖502时序）
+        // 用ChatRAGText(502)注入查询结果，豆包会自动总结播报，不依赖TTS会话状态
         const sendTTSResult = text => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            console.log('[OTM] 发送500 TTS直接播报 | len=' + text.length);
-            vmLog('📢 发送500 ChatTTSText播报 | ' + text.length + '字: ' + text.substring(0,40) + '…', 'ok');
-            // 按句号等断句，每包一句
-            const parts = text.split(/(?<=[。！？])/) .filter(s => s.trim());
-            if (parts.length === 0) parts.push(text);
-            parts.forEach((s, i) => {
-                const isFirst = i === 0;
-                const isLast = i === parts.length - 1;
-                ws.send(encode(500, JSON.stringify({ start: isFirst, content: s.trim(), end: isLast }), sid));
-            });
+            console.log('[OTM] 发送502 RAG播报 | len=' + text.length);
+            vmLog('📢 发送502 ChatRAGText播报 | ' + text.length + '字: ' + text.substring(0,40) + '…', 'ok');
+            const chatMsg = JSON.stringify({ external_rag: sanitizeRag(text) });
+            ws.send(encode(502, chatMsg, sid));
         };
 
         // 发送客户端合成文本（官方文档：事件500，用于"请稍等"安抚话术）
