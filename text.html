@@ -381,6 +381,8 @@ const stopAudio=()=>{queue=[];chunks=[];playing=false;};
 // ══ 意图匹配 + RAG 检索 ═══════════════════════════════════
 const sanitize=s=>s.replace(/[\r\n\t]/g,' ').replace(/\\/g,'、').replace(/["]/g,'').replace(/\s{2,}/g,' ').trim().substring(0,500);
 
+let pendingRAG = null; // 暂存待发送的 RAG payload，等 ASREnded(459) 后再发
+
 function matchQuery(text){
   const m=text.match(/(?:查|帮我查|帮忙查|查一下|查询)(.{1,4}?)(今天|昨天)(的|的工作|遇到什么|做了什么|工作|情况|计划)?/);
   if(!m)return null;
@@ -404,6 +406,7 @@ function handleRAGQuery(text){
       showRagCard('未找到 '+query.name+' 在 '+query.date+' 的记录');
       setStatus('无数据，转普通回复');
       resetFlow();
+      pendingRAG=null;
       return;
     }
 
@@ -416,19 +419,26 @@ function handleRAGQuery(text){
       const ragArr=[{title:rec.name+' '+rec.date+' 工作日报',content}];
       const payload={external_rag:JSON.stringify(ragArr)};
 
-      showRagCard('已检索 '+rec.items.length+' 条 → 发送 ChatRAGText (502)');
+      showRagCard('知识库已就绪，等待 ASR 结束后发送…');
       renderDetail(query,rec,ragArr);
 
-      // 切换到RAG详情提示
-      setTimeout(()=>showRagCard('✅ RAG已发送！切换「RAG详情」tab查看'),1200);
-
-      if(ws&&ws.readyState===WebSocket.OPEN){
-        ws.send(encode(502,JSON.stringify(payload),sid));
-      }
+      // 暂存 RAG，等 eid===459 (ASREnded) 触发后再发送
+      pendingRAG = payload;
     },400);
   },500);
 
   return true;
+}
+
+function flushPendingRAG(){
+  if(!pendingRAG)return;
+  const payload=pendingRAG;
+  pendingRAG=null;
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    ws.send(encode(502,JSON.stringify(payload),sid));
+    showRagCard('✅ RAG已发送(502)！切换「RAG详情」tab查看');
+    setStatus('RAG已发送，等待播报…');
+  }
 }
 
 // ══ WS 消息处理 ════════════════════════════════════════════
@@ -460,6 +470,9 @@ const onMsg=evt=>{
     } else if(eid===451){
       const t=(j.results||[]).map(r=>r.text).join('');
       if(t){setSub(t,true);setStatus('识别到：'+t);litFlow(0);handleRAGQuery(t);}
+    } else if(eid===459){
+      // ASREnded：ASR 真正结束，现在才是发送 RAG 的正确时机
+      flushPendingRAG();
     } else if(eid===153||eid===599){setStatus('连接出错，请刷新重试');setConnStatus(false,'出错');}
   }
   if(msgType===11&&payload)chunks.push(payload);
@@ -512,10 +525,12 @@ function sendText(){
   setSub(text,true);setStatus('发送中…');
   resetFlow();litFlow(0);
 
-  // 先尝试RAG，命中就走RAG，否则走文本闲聊
-  const isRAG=handleRAGQuery(text);
-  if(!isRAG){
-    ws.send(encode(501,JSON.stringify({content:text}),sid));
+  // 先发 501 让服务端知道有文字输入（触发 ASR 链路 → 收到 459 后再发 502）
+  ws.send(encode(501,JSON.stringify({content:text}),sid));
+
+  // 同时检测是否命中 RAG，命中则暂存，等 459 后发送
+  handleRAGQuery(text);
+  if(!pendingRAG){
     setStatus('等待回复…');
   }
 }
