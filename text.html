@@ -525,12 +525,18 @@ function sendText(){
   setSub(text,true);setStatus('发送中…');
   resetFlow();litFlow(0);
 
-  // 先发 501 让服务端知道有文字输入（触发 ASR 链路 → 收到 459 后再发 502）
-  ws.send(encode(501,JSON.stringify({content:text}),sid));
+  const isRAG = handleRAGQuery(text);
 
-  // 同时检测是否命中 RAG，命中则暂存，等 459 后发送
-  handleRAGQuery(text);
-  if(!pendingRAG){
+  if(isRAG){
+    // 文字输入不经过ASR，服务端不会发459，需要先发501再立刻发502
+    // handleRAGQuery 内部有 500+400ms 的 setTimeout，等它把 pendingRAG 设好再发
+    ws.send(encode(501,JSON.stringify({content:text}),sid));
+    setTimeout(()=>{
+      // pendingRAG 此时应已被 handleRAGQuery 的 setTimeout 赋值
+      flushPendingRAG();
+    }, 1000); // 500ms(意图)+400ms(检索)+100ms缓冲
+  } else {
+    ws.send(encode(501,JSON.stringify({content:text}),sid));
     setStatus('等待回复…');
   }
 }
